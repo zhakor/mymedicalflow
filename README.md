@@ -8,6 +8,19 @@ Tutti i dati vengono salvati localmente sul tuo dispositivo. Nessuna connessione
 
 ---
 
+## Download
+
+Scarica l'ultima versione dalla pagina [Releases](https://github.com/zhakor/mymedicalflow/releases):
+
+| File | Tipo | Piattaforma |
+|---|---|---|
+| `MyMedicalFlow_0.1.0_x64_en-US.msi` | Installer MSI | Windows 64-bit |
+| `MyMedicalFlow_0.1.0_x64-setup.exe` | Installer NSIS (.exe) | Windows 64-bit |
+
+> Per costruire l'installer localmente vedi la sezione [Build installer](#build-installer).
+
+---
+
 ## Funzionalità
 
 - Profilo professionista con partita IVA e foto

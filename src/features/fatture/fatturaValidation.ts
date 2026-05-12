@@ -1,5 +1,6 @@
 import type { InvoiceInput, InvoiceFilters } from '../../types/fattura'
 import { fatturaService } from '../../lib/fatturaService'
+import { validaCodiceFiscale } from '../../lib/validazioni'
 
 export interface InvoiceFormErrors {
   invoiceType?: string
@@ -43,8 +44,12 @@ export function validateInvoice(
     // Per fatture cartacee: campi paziente e descrizione obbligatori
     if (!input.patientFirstName?.trim()) errors.patientFirstName = 'Il nome è obbligatorio.'
     if (!input.patientLastName?.trim()) errors.patientLastName = 'Il cognome è obbligatorio.'
-    if (!input.patientFiscalCode?.trim())
+    if (!input.patientFiscalCode?.trim()) {
       errors.patientFiscalCode = 'Il codice fiscale è obbligatorio.'
+    } else {
+      const r = validaCodiceFiscale(input.patientFiscalCode)
+      if (!r.valido) errors.patientFiscalCode = r.errore
+    }
     if (!input.description?.trim()) errors.description = 'La descrizione è obbligatoria.'
     if (!input.status) errors.status = 'Lo stato è obbligatorio.'
     // Bollo

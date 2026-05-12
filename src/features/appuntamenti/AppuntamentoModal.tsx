@@ -195,9 +195,6 @@ export function AppuntamentoModal({
     <>
       <div
         className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-        onClick={(e) => {
-          if (e.target === e.currentTarget && !showOmonimoModal) onClose()
-        }}
       >
         <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col border border-gray-100 dark:border-gray-800 max-h-[90vh]">
           {/* Header */}

@@ -1,4 +1,10 @@
 import type { PatientInput, PatientFilters } from '../../types/paziente'
+import {
+  validaCodiceFiscale,
+  validaCellulare,
+  validaDataNascita,
+  validaSePresente,
+} from '../../lib/validazioni'
 
 export interface PatientFormErrors {
   firstName?: string
@@ -14,6 +20,8 @@ export interface PatientFormErrors {
   guardianFirstName?: string
   guardianLastName?: string
   guardianPhone?: string
+  guardianFiscalCode?: string
+  guardianBirthDate?: string
 }
 
 export function validatePatient(
@@ -25,13 +33,33 @@ export function validatePatient(
   // Sempre obbligatori
   if (!input.firstName?.trim()) errors.firstName = 'Il nome è obbligatorio.'
   if (!input.lastName?.trim()) errors.lastName = 'Il cognome è obbligatorio.'
-  if (!input.fiscalCode?.trim()) errors.fiscalCode = 'Il codice fiscale è obbligatorio.'
+
+  // Codice fiscale obbligatorio + formato
+  if (!input.fiscalCode?.trim()) {
+    errors.fiscalCode = 'Il codice fiscale è obbligatorio.'
+  } else {
+    const r = validaCodiceFiscale(input.fiscalCode)
+    if (!r.valido) errors.fiscalCode = r.errore
+  }
+
   if (!input.gender) errors.gender = 'Il sesso è obbligatorio.'
-  if (!input.birthDate) errors.birthDate = 'La data di nascita è obbligatoria.'
+
+  // Data di nascita obbligatoria + non nel futuro
+  if (!input.birthDate) {
+    errors.birthDate = 'La data di nascita è obbligatoria.'
+  } else {
+    const r = validaDataNascita(input.birthDate)
+    if (!r.valido) errors.birthDate = r.errore
+  }
 
   if (!isEvo) {
     // Paziente standard: cellulare e intera residenza obbligatori
-    if (!input.phoneNumber?.trim()) errors.phoneNumber = 'Il cellulare è obbligatorio.'
+    if (!input.phoneNumber?.trim()) {
+      errors.phoneNumber = 'Il cellulare è obbligatorio.'
+    } else {
+      const r = validaCellulare(input.phoneNumber)
+      if (!r.valido) errors.phoneNumber = r.errore
+    }
     if (!input.address?.trim()) errors.address = "L'indirizzo è obbligatorio."
     if (!input.postalCode?.trim()) errors.postalCode = 'Il CAP è obbligatorio.'
     if (!input.city?.trim()) errors.city = 'La città è obbligatoria.'
@@ -44,7 +72,22 @@ export function validatePatient(
     // Età evolutiva
     if (!input.guardian?.firstName?.trim()) errors.guardianFirstName = 'Il nome del tutore è obbligatorio.'
     if (!input.guardian?.lastName?.trim()) errors.guardianLastName = 'Il cognome del tutore è obbligatorio.'
-    if (!input.guardian?.phoneNumber?.trim()) errors.guardianPhone = 'Il cellulare del tutore è obbligatorio.'
+
+    // Cellulare tutore obbligatorio + formato
+    if (!input.guardian?.phoneNumber?.trim()) {
+      errors.guardianPhone = 'Il cellulare del tutore è obbligatorio.'
+    } else {
+      const r = validaCellulare(input.guardian.phoneNumber)
+      if (!r.valido) errors.guardianPhone = r.errore
+    }
+
+    // CF tutore opzionale, ma se presente deve essere valido
+    const rGuardCf = validaSePresente(input.guardian?.fiscalCode, validaCodiceFiscale)
+    if (!rGuardCf.valido) errors.guardianFiscalCode = rGuardCf.errore
+
+    // Data di nascita tutore opzionale, ma se presente non può essere nel futuro
+    const rGuardBirth = validaSePresente(input.guardian?.birthDate, validaDataNascita)
+    if (!rGuardBirth.valido) errors.guardianBirthDate = rGuardBirth.errore
 
     // Residenza: almeno un set completo (paziente oppure tutore)
     const patHasRes = !!(input.address?.trim() && input.postalCode?.trim() && input.city?.trim() && input.province?.trim())

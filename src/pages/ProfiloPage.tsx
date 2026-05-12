@@ -6,12 +6,14 @@ import { Badge } from '../components/ui/Badge'
 import { useProfiloStore } from '../stores/profiloStore'
 import type { ProfiloProfessionista } from '../types'
 import { Pencil, Check, X } from 'lucide-react'
+import { validaPIva, validaDataNascita, validaSePresente } from '../lib/validazioni'
 
 interface Errori {
   professione?: string
   nome?: string
   cognome?: string
   partitaIva?: string
+  dataNascita?: string
 }
 
 function valida(form: Partial<ProfiloProfessionista>): Errori {
@@ -19,7 +21,10 @@ function valida(form: Partial<ProfiloProfessionista>): Errori {
   if (!form.professione?.trim()) errori.professione = 'Inserisci la tua professione.'
   if (!form.nome?.trim()) errori.nome = 'Il nome è obbligatorio.'
   if (!form.cognome?.trim()) errori.cognome = 'Il cognome è obbligatorio.'
-  if (!form.partitaIva?.trim()) errori.partitaIva = 'La partita IVA è obbligatoria.'
+  const rivaPiva = validaPIva(form.partitaIva ?? '')
+  if (!rivaPiva.valido) errori.partitaIva = rivaPiva.errore
+  const riDataNascita = validaSePresente(form.dataNascita, validaDataNascita)
+  if (!riDataNascita.valido) errori.dataNascita = riDataNascita.errore
   return errori
 }
 
@@ -212,6 +217,7 @@ export function ProfiloPage() {
                 type="date"
                 value={form.dataNascita}
                 onChange={(e) => handleChange('dataNascita', e.target.value)}
+                error={errori.dataNascita}
               />
 
               <div className="flex gap-3 pt-2">

@@ -6,6 +6,7 @@ import { useProfiloStore } from '../stores/profiloStore'
 import type { ProfiloProfessionista } from '../types'
 import { iconaWhite } from '../assets/logos'
 import { LogIn } from 'lucide-react'
+import { validaPIva } from '../lib/validazioni'
 
 interface Errori {
   professione?: string
@@ -19,7 +20,8 @@ function valida(form: Partial<ProfiloProfessionista>): Errori {
   if (!form.professione?.trim()) errori.professione = 'Inserisci la tua professione.'
   if (!form.nome?.trim()) errori.nome = 'Il nome è obbligatorio.'
   if (!form.cognome?.trim()) errori.cognome = 'Il cognome è obbligatorio.'
-  if (!form.partitaIva?.trim()) errori.partitaIva = 'La partita IVA è obbligatoria.'
+  const rivaPiva = validaPIva(form.partitaIva ?? '')
+  if (!rivaPiva.valido) errori.partitaIva = rivaPiva.errore
   return errori
 }
 

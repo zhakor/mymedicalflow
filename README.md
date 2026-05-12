@@ -1,4 +1,4 @@
-# MyMedicalFlow
+# MyMedicalFlow - Work in progress...
 
 Gestionale medico desktop **offline** per professionisti sanitari.
 

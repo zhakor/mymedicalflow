@@ -14,8 +14,8 @@ Scarica l'ultima versione dalla pagina [Releases](https://github.com/zhakor/myme
 
 | File | Tipo | Piattaforma |
 |---|---|---|
-| `MyMedicalFlow_0.1.0_x64_en-US.msi` | Installer MSI | Windows 64-bit |
-| `MyMedicalFlow_0.1.0_x64-setup.exe` | Installer NSIS (.exe) | Windows 64-bit |
+| `MyMedicalFlow_0.2.0_x64_en-US.msi` | Installer MSI | Windows 64-bit |
+| `MyMedicalFlow_0.2.0_x64-setup.exe` | Installer NSIS (.exe) | Windows 64-bit |
 
 > Per costruire l'installer localmente vedi la sezione [Build installer](#build-installer).
 

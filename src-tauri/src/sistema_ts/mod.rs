@@ -11,6 +11,7 @@
 pub mod client;
 pub mod commands;
 pub mod config;
+pub mod credenziali;
 pub mod crypto;
 pub mod errors;
 pub mod mapper;
@@ -24,13 +25,14 @@ pub use models::{DocumentoSpesa, Operazione, RispostaDocumentoSpesa};
 
 /// Esegue un'operazione sul Sistema TS.
 ///
-/// In `Mock` non parte alcuna richiesta di rete. Gli altri ambienti non sono
-/// ancora collegati: la trasmissione reale richiede credenziali e cifratura del
-/// codice fiscale, che arrivano nel passo successivo.
+/// In `Mock` non parte alcuna richiesta di rete. Negli altri ambienti le
+/// credenziali vengono lette dal portachiavi del sistema: `codice_fiscale` è
+/// quello del professionista, che identifica l'erogatore e non è un segreto.
 pub fn esegui_operazione(
     config: &ConfigSistemaTs,
     operazione: Operazione,
     documento: &DocumentoSpesa,
+    codice_fiscale: &str,
 ) -> Result<RispostaDocumentoSpesa, ErroreSistemaTs> {
     config
         .ambiente
@@ -45,9 +47,12 @@ pub fn esegui_operazione(
 
     match config.ambiente {
         Ambiente::Mock => mock::esegui(operazione, documento, config.esito_mock),
-        Ambiente::Test | Ambiente::Produzione => Err(ErroreSistemaTs::configurazione(
-            "La trasmissione al Sistema TS non è ancora attiva: al momento è disponibile solo la simulazione locale.",
-        )),
+        Ambiente::Locale | Ambiente::Test | Ambiente::Produzione => {
+            // Le credenziali arrivano dal portachiavi del sistema: mai da
+            // costanti nel sorgente, che finirebbero nel repository.
+            let credenziali = credenziali::per_invio(codice_fiscale)?;
+            client::invia(config, operazione, documento, &credenziali)
+        }
     }
 }
 
@@ -55,6 +60,9 @@ pub fn esegui_operazione(
 mod tests {
     use super::*;
     use models::{IdDocumentoFiscale, VoceSpesa};
+
+    /// Codice fiscale fittizio: nelle fixture non compaiono persone reali.
+    const CF_PROVA: &str = "RSSMRA80A01H501U";
 
     fn documento() -> DocumentoSpesa {
         DocumentoSpesa {
@@ -81,12 +89,22 @@ mod tests {
 
     #[test]
     fn in_mock_la_trasmissione_funziona_senza_rete() {
-        let config = ConfigSistemaTs::default();
+        let config = ConfigSistemaTs {
+            ambiente: Ambiente::Mock,
+            ..Default::default()
+        };
         assert_eq!(config.ambiente, Ambiente::Mock);
         assert!(!config.ambiente.esce_in_rete());
 
-        let r = esegui_operazione(&config, Operazione::Inserimento, &documento()).unwrap();
+        let r = esegui_operazione(&config, Operazione::Inserimento, &documento(), CF_PROVA).unwrap();
         assert!(r.accettata());
+    }
+
+    #[test]
+    fn in_sviluppo_non_si_parte_puntando_al_ministero() {
+        // Il valore predefinito e' l'unica cosa che conta davvero: nessuno
+        // configura l'ambiente prima del primo invio.
+        assert!(!ConfigSistemaTs::default().ambiente.raggiunge_il_ministero());
     }
 
     #[test]
@@ -97,7 +115,8 @@ mod tests {
             ambiente: Ambiente::Produzione,
             ..Default::default()
         };
-        let errore = esegui_operazione(&config, Operazione::Inserimento, &documento()).unwrap_err();
+        let errore = esegui_operazione(&config, Operazione::Inserimento, &documento(), CF_PROVA)
+            .unwrap_err();
         assert!(
             matches!(errore, ErroreSistemaTs::Configurazione { .. }),
             "atteso rifiuto di configurazione, ottenuto {errore:?}"

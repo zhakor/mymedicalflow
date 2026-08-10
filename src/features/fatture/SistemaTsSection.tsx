@@ -1,15 +1,12 @@
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
-import { Badge } from '../../components/ui/Badge'
 import {
   PAGAMENTO_TRACCIATO_OPTIONS,
   TIPO_SPESA_OPTIONS,
   datiSistemaTsPredefiniti,
-  numeroDocumentoPerSts,
   richiedeTipoDocumentoEOpposizione,
 } from '../../types/sistemaTs'
 import type { DatiSistemaTs, PagamentoTracciato, TipoSpesa } from '../../types/sistemaTs'
-import { Info, ShieldCheck } from 'lucide-react'
 
 export interface SistemaTsErrori {
   dataPagamento?: string
@@ -22,7 +19,6 @@ interface SistemaTsSectionProps {
   dati: DatiSistemaTs | undefined
   onChange: (dati: DatiSistemaTs | undefined) => void
   dataEmissione: string
-  numeroFattura: string
   errori?: SistemaTsErrori
   /** Disattiva le modifiche quando la fattura è già stata trasmessa. */
   bloccato?: boolean
@@ -39,7 +35,6 @@ export function SistemaTsSection({
   dati,
   onChange,
   dataEmissione,
-  numeroFattura,
   errori = {},
   bloccato = false,
 }: SistemaTsSectionProps) {
@@ -58,7 +53,6 @@ export function SistemaTsSection({
   const obbligoOpposizione = richiedeTipoDocumentoEOpposizione(
     dati?.dataPagamento ?? dataEmissione ?? '',
   )
-  const numeroTrasmesso = numeroDocumentoPerSts(numeroFattura ?? '')
 
   return (
     <div className="border-t border-gray-100 dark:border-gray-800 pt-5">
@@ -197,28 +191,6 @@ export function SistemaTsSection({
               <span className="text-sm text-gray-700 dark:text-gray-300">Pagamento anticipato</span>
             </label>
           </div>
-
-          {/* Il numero trasmesso non coincide con quello mostrato in fattura */}
-          <div className="flex items-start gap-2 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
-            <Info size={14} className="text-gray-400 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Al Sistema TS verrà trasmesso il numero documento{' '}
-              <Badge variant="muted">{numeroTrasmesso || '—'}</Badge>, senza l'anno:
-              l'anno è già indicato dalla data di emissione. Il documento è identificato
-              da partita IVA, data di emissione, dispositivo e questo numero, quindi
-              modificarlo dopo l'invio impedirebbe variazioni successive.
-            </p>
-          </div>
-
-          {bloccato && (
-            <div className="flex items-start gap-2 p-3 bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-xl">
-              <ShieldCheck size={14} className="text-teal-500 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-teal-700 dark:text-teal-400">
-                Fattura già trasmessa: i dati del Sistema TS non sono più modificabili da
-                qui. Usa una variazione dalla scheda della fattura.
-              </p>
-            </div>
-          )}
         </div>
       )}
     </div>

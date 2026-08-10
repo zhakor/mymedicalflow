@@ -6,9 +6,9 @@ import {
   trasmetti,
   validaPerTrasmissione,
 } from '../../lib/sistemaTsService'
-import type { ErroreTrasmissione } from '../../lib/sistemaTsService'
+import type { ErroreTrasmissione, EsitoTrasmissione } from '../../lib/sistemaTsService'
 import { OPERAZIONE_TS_LABELS, STATO_STS_LABELS } from '../../types/sistemaTs'
-import type { OperazioneTs, StatoSistemaTS } from '../../types/sistemaTs'
+import type { CategoriaMessaggioTs, OperazioneTs, StatoSistemaTS } from '../../types/sistemaTs'
 import type { Invoice } from '../../types/fattura'
 import { AlertTriangle, CheckCircle, Clock, Send, Upload } from 'lucide-react'
 
@@ -27,6 +27,13 @@ const COLORE_STATO: Record<StatoSistemaTS, 'success' | 'warning' | 'muted' | 'in
   cancellata: 'muted',
 }
 
+const BADGE_PER_CATEGORIA: Record<CategoriaMessaggioTs, 'success' | 'warning' | 'muted' | 'info' | 'error'> = {
+  errore: 'error',
+  avviso: 'warning',
+  informazione: 'info',
+  sconosciuta: 'muted',
+}
+
 /**
  * Stato della trasmissione e azioni consentite.
  *
@@ -36,7 +43,7 @@ const COLORE_STATO: Record<StatoSistemaTS, 'success' | 'warning' | 'muted' | 'in
 export function StatoSistemaTsBox({ invoice, onAggiornato }: StatoSistemaTsBoxProps) {
   const [inCorso, setInCorso] = useState(false)
   const [errore, setErrore] = useState<ErroreTrasmissione | null>(null)
-  const [ultimoEsito, setUltimoEsito] = useState<string | null>(null)
+  const [ultimoEsito, setUltimoEsito] = useState<EsitoTrasmissione | null>(null)
 
   const trasmissione = sistemaTsService.perFattura(invoice.id)
   const stato = sistemaTsService.statoPerFattura(invoice)
@@ -53,17 +60,7 @@ export function StatoSistemaTsBox({ invoice, onAggiornato }: StatoSistemaTsBoxPr
     setUltimoEsito(null)
     try {
       const esito = await trasmetti(invoice, operazione)
-      if (esito.accettata) {
-        setUltimoEsito(
-          `${OPERAZIONE_TS_LABELS[operazione]} accettata${esito.protocollo ? ` — protocollo ${esito.protocollo}` : ''}`,
-        )
-      } else {
-        setErrore({
-          genere: 'rifiutato',
-          messaggio: esito.descrizione ?? 'Documento non accettato dal Sistema TS.',
-          codice: esito.codice ?? undefined,
-        })
-      }
+      setUltimoEsito(esito)
       onAggiornato?.()
     } catch (err) {
       setErrore(err as ErroreTrasmissione)
@@ -72,6 +69,13 @@ export function StatoSistemaTsBox({ invoice, onAggiornato }: StatoSistemaTsBoxPr
       setInCorso(false)
     }
   }
+
+  // Un'operazione accettata può comunque portare avvisi: sono due informazioni
+  // separate, non si deduce l'una dall'altra. I messaggi puramente informativi
+  // (es. una conferma "operazione eseguita correttamente") non sono segnalazioni.
+  const segnalazioni = ultimoEsito?.accettata
+    ? ultimoEsito.messaggi.filter((m) => m.categoria === 'avviso')
+    : []
 
   return (
     <div className="border-t border-gray-100 dark:border-gray-800 pt-5 space-y-3">
@@ -99,10 +103,34 @@ export function StatoSistemaTsBox({ invoice, onAggiornato }: StatoSistemaTsBoxPr
         </div>
       )}
 
-      {ultimoEsito && !errore && (
+      {ultimoEsito?.accettata && (
         <div className="flex items-start gap-3 p-3 bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-xl">
           <CheckCircle size={16} className="text-teal-500 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-teal-700 dark:text-teal-400 break-words">{ultimoEsito}</p>
+          <p className="text-xs text-teal-700 dark:text-teal-400 break-words">
+            Trasmissione completata
+            {ultimoEsito.protocollo && (
+              <>
+                {' '}— protocollo <span className="font-mono font-medium">{ultimoEsito.protocollo}</span>
+              </>
+            )}
+          </p>
+        </div>
+      )}
+
+      {/* Un successo può portare segnalazioni: non è un errore, ma va mostrata */}
+      {segnalazioni.length > 0 && (
+        <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+          <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="min-w-0 text-xs text-amber-700 dark:text-amber-400">
+            <p className="font-medium">Trasmissione completata con segnalazioni</p>
+            <ul className="mt-1 list-disc pl-4 space-y-0.5">
+              {segnalazioni.map((m, i) => (
+                <li key={`${m.codice}-${i}`}>
+                  {m.codice} — {m.descrizione}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
 
@@ -146,6 +174,36 @@ export function StatoSistemaTsBox({ invoice, onAggiornato }: StatoSistemaTsBoxPr
         </div>
       )}
 
+      {/* Rifiuto applicativo: il server ha risposto, ma non ha accettato il documento */}
+      {ultimoEsito && !ultimoEsito.accettata && (
+        <div className="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+          <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
+          <div className="min-w-0 text-xs text-red-700 dark:text-red-400">
+            <p className="font-medium">Trasmissione non riuscita</p>
+            {ultimoEsito.messaggi.length === 0 && (
+              <p className="mt-0.5 break-words">Documento non accettato dal Sistema TS.</p>
+            )}
+            {ultimoEsito.messaggi.length === 1 && (
+              <p className="mt-0.5 break-words">
+                {ultimoEsito.messaggi[0].codice} — {ultimoEsito.messaggi[0].descrizione}
+              </p>
+            )}
+            {ultimoEsito.messaggi.length > 1 && (
+              <>
+                <p className="mt-0.5">Sono stati rilevati {ultimoEsito.messaggi.length} problemi:</p>
+                <ul className="mt-1 list-disc pl-4 space-y-0.5">
+                  {ultimoEsito.messaggi.map((m, i) => (
+                    <li key={`${m.codice}-${i}`}>
+                      {m.codice} — {m.descrizione}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Solo le operazioni ammesse dallo stato corrente */}
       <div className="flex flex-wrap gap-2">
         {operazioni.map((op) => (
@@ -177,12 +235,26 @@ export function StatoSistemaTsBox({ invoice, onAggiornato }: StatoSistemaTsBoxPr
               <li key={t.id} className="flex items-start gap-2 text-gray-500 dark:text-gray-400">
                 <Clock size={12} className="flex-shrink-0 mt-0.5" />
                 <span className="min-w-0">
-                  {new Date(t.istante).toLocaleString('it-IT')} — {OPERAZIONE_TS_LABELS[t.operazione]}{' '}
+                  {new Date(t.istante).toLocaleString('it-IT')} — <Badge variant={OPERAZIONE_TS_LABELS[t.operazione] === "Cancellazione" ? "error" : OPERAZIONE_TS_LABELS[t.operazione] === "Inserimento" ? "success" : 
+                    OPERAZIONE_TS_LABELS[t.operazione] === "Variazione" ? "warning" : "info"
+                  }>{OPERAZIONE_TS_LABELS[t.operazione]}</Badge>{' '}
                   <Badge variant={t.riuscito ? 'success' : 'warning'}>
                     {t.riuscito ? 'accettata' : 'errore'}
                   </Badge>
                   {t.protocollo && <span className="font-mono"> {t.protocollo}</span>}
-                  {t.codice && <span> — {t.codice}</span>}
+                  {/* Ogni messaggio del Sistema TS, non solo il primo */}
+                  {t.messaggi && t.messaggi.length > 0 ? (
+                    <ul className="mt-1 list-disc pl-4 space-y-0.5">
+                      {t.messaggi.map((m, i) => (
+                        <li key={`${t.id}-${i}`}>
+                          <Badge variant={BADGE_PER_CATEGORIA[m.categoria]}>{m.tipo}</Badge>{' '}
+                          {m.codice} — {m.descrizione}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    t.codice && <span> — {t.codice}</span>
+                  )}
                 </span>
               </li>
             ))}

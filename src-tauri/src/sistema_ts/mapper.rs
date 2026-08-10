@@ -17,6 +17,10 @@ pub struct DatiFatturaTs {
     // Erogatore, dal profilo
     pub partita_iva: String,
     pub dispositivo: u16,
+    /// Codice fiscale del professionista: identifica l'erogatore presso il
+    /// Sistema TS ed è anche il codice identificativo per l'autenticazione.
+    #[serde(default)]
+    pub codice_fiscale_professionista: String,
     // Documento
     pub numero_fattura: String,
     pub data_emissione: String,
@@ -166,6 +170,7 @@ mod tests {
         DatiFatturaTs {
             partita_iva: "01234567897".into(),
             dispositivo: 1,
+            codice_fiscale_professionista: "RSSMRA80A01H501U".into(),
             numero_fattura: "40/2026".into(),
             data_emissione: "2026-03-31".into(),
             importo: 162.00,

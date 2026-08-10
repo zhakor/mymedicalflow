@@ -353,9 +353,81 @@ mod tests {
         assert!(matches!(errore, ErroreSistemaTs::Configurazione { .. }));
     }
 
+    /// Legge una credenziale dall'ambiente, spiegando cosa manca se assente.
+    fn da_ambiente(nome: &str) -> String {
+        std::env::var(nome).unwrap_or_else(|_| {
+            panic!(
+                "manca la variabile {nome}.\n\
+                 Le credenziali di collaudo stanno in resources/sistema_ts/\
+                 SoggettoAltriProfessionisti/UtenzeTestAltriProfessionisti.txt\n\
+                 Impostare: STS_UTENTE, STS_PASSWORD, STS_PINCODE, STS_CF_PROPRIETARIO, STS_PIVA"
+            )
+        })
+    }
+
+    /// Invio reale all'ambiente di collaudo ministeriale.
+    ///
+    /// Escluso dalla suite: si esegue solo a mano, con
+    /// `cargo test --lib invio_reale_al_collaudo -- --ignored --nocapture`.
+    /// Nessuna esecuzione automatica puo' quindi contattare il Sistema TS.
+    ///
+    /// Il documento viaggia con `flagOpposizione = 1`, quindi **senza codice
+    /// fiscale dell'assistito**: la prova non inserisce nel collaudo i dati di
+    /// una persona reale, e non serve cifrare alcun dato del paziente.
+    #[test]
+    #[ignore = "contatta il collaudo ministeriale: eseguire a mano con --ignored"]
+    fn invio_reale_al_collaudo() {
+        let credenziali = Credenziali {
+            utente: da_ambiente("STS_UTENTE"),
+            password: da_ambiente("STS_PASSWORD"),
+            pincode: da_ambiente("STS_PINCODE"),
+            cf_proprietario: da_ambiente("STS_CF_PROPRIETARIO"),
+        };
+
+        // Numero diverso a ogni esecuzione: due invii con lo stesso
+        // identificativo verrebbero respinti come duplicato.
+        let progressivo = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            % 100_000;
+
+        let mut documento = documento();
+        documento.id_spesa.p_iva = da_ambiente("STS_PIVA");
+        documento.id_spesa.num_documento = format!("T{progressivo}");
+        documento.cf_cittadino = None;
+        documento.flag_opposizione = Some("1".into());
+
+        let url = Ambiente::Test.endpoint().expect("endpoint di collaudo assente");
+        println!("\n=== INVIO AL COLLAUDO ===");
+        println!("ambiente : {}", Ambiente::Test);
+        println!("endpoint : {url}");
+        println!("documento: {}", documento.id_spesa.num_documento);
+        println!("opposizione: 1 (nessun codice fiscale trasmesso)\n");
+
+        match invia_a(url, Operazione::Inserimento, &documento, &credenziali, 60) {
+            Ok(risposta) => {
+                println!("esitoChiamata: {}", risposta.esito_chiamata);
+                println!("protocollo   : {:?}", risposta.protocollo);
+                for m in &risposta.messaggi {
+                    println!("messaggio    : [{}] {} — {}", m.tipo, m.codice, m.descrizione);
+                }
+                assert!(
+                    risposta.accettata(),
+                    "documento non accettato: {:?}",
+                    risposta.primo_errore()
+                );
+            }
+            Err(e) => panic!("invio non riuscito: {e:?}"),
+        }
+    }
+
     #[test]
     fn in_mock_non_si_esce_in_rete() {
-        let config = ConfigSistemaTs::default();
+        let config = ConfigSistemaTs {
+            ambiente: Ambiente::Mock,
+            ..Default::default()
+        };
         assert!(!esce_in_rete(&config));
         // Senza endpoint l'invio diretto non è possibile
         assert!(invia(&config, Operazione::Inserimento, &documento(), &credenziali()).is_err());

@@ -114,6 +114,22 @@ export const AMBIENTE_TS_LABELS: Record<AmbienteTs, string> = {
   produzione: 'Produzione',
 }
 
+/** Classificazione del campo `tipo` restituito dal Sistema TS per un messaggio. */
+export type CategoriaMessaggioTs = 'errore' | 'avviso' | 'informazione' | 'sconosciuta'
+
+/**
+ * Un messaggio applicativo del Sistema TS. `accettata` e `messaggi` sono
+ * dimensioni indipendenti: un'operazione accettata può portare avvisi, e un
+ * rifiuto può contenere più di un messaggio.
+ */
+export interface MessaggioTs {
+  codice: string
+  descrizione: string
+  /** Valore originale restituito dal Sistema TS (es. "E", "W", "I"). */
+  tipo: string
+  categoria: CategoriaMessaggioTs
+}
+
 /**
  * Un tentativo di comunicazione. Conserva metadati, mai il contenuto XML:
  * conterrebbe codice fiscale e dati sanitari.
@@ -125,7 +141,11 @@ export interface TentativoTs {
   istante: string
   riuscito: boolean
   protocollo?: string
+  /** Tutti i messaggi restituiti dal Sistema TS per questo tentativo. */
+  messaggi?: MessaggioTs[]
+  /** @deprecated sostituito da `messaggi`; resta per i tentativi salvati prima dell'introduzione dell'elenco. */
   codice?: string
+  /** @deprecated sostituito da `messaggi`; resta per i tentativi salvati prima dell'introduzione dell'elenco. */
   descrizione?: string
 }
 

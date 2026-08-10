@@ -94,20 +94,55 @@ pub struct RispostaDocumentoSpesa {
 pub struct MessaggioEsito {
     pub codice: String,
     pub descrizione: String,
-    /// Tipicamente `E` errore, `W` avviso, `I` informazione.
+    /// Tipicamente `E` errore, `W` avviso, `I` informazione. Il valore
+    /// originale del Sistema TS: l'XSD lo dichiara come stringa libera, senza
+    /// un elenco chiuso di valori ammessi.
     pub tipo: String,
+}
+
+/// Classificazione del campo `tipo` di un `MessaggioEsito`.
+///
+/// L'XSD non vincola `tipo` a un'enumerazione: un valore non riconosciuto
+/// diventa `Sconosciuta` invece di essere trattato a caso come errore o avviso.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CategoriaMessaggio {
+    Errore,
+    Avviso,
+    Informazione,
+    Sconosciuta,
+}
+
+impl MessaggioEsito {
+    /// Interpreta `tipo` senza perdere il valore originale, che resta comunque
+    /// disponibile sul messaggio.
+    pub fn categoria(&self) -> CategoriaMessaggio {
+        match self.tipo.to_ascii_uppercase().as_str() {
+            "E" => CategoriaMessaggio::Errore,
+            "W" => CategoriaMessaggio::Avviso,
+            "I" => CategoriaMessaggio::Informazione,
+            _ => CategoriaMessaggio::Sconosciuta,
+        }
+    }
 }
 
 impl RispostaDocumentoSpesa {
     /// Il Sistema TS accetta il documento restituendo un protocollo.
     pub fn accettata(&self) -> bool {
-        self.protocollo.as_deref().is_some_and(|p| !p.trim().is_empty())
-            && !self.messaggi.iter().any(|m| m.tipo.eq_ignore_ascii_case("E"))
+        self.protocollo
+            .as_deref()
+            .is_some_and(|p| !p.trim().is_empty())
+            && !self
+                .messaggi
+                .iter()
+                .any(|m| m.categoria() == CategoriaMessaggio::Errore)
     }
 
     /// Primo messaggio di errore, se presente.
     pub fn primo_errore(&self) -> Option<&MessaggioEsito> {
-        self.messaggi.iter().find(|m| m.tipo.eq_ignore_ascii_case("E"))
+        self.messaggi
+            .iter()
+            .find(|m| m.categoria() == CategoriaMessaggio::Errore)
     }
 }
 
@@ -115,7 +150,10 @@ impl RispostaDocumentoSpesa {
 mod tests {
     use super::*;
 
-    fn risposta(protocollo: Option<&str>, messaggi: Vec<(&str, &str, &str)>) -> RispostaDocumentoSpesa {
+    fn risposta(
+        protocollo: Option<&str>,
+        messaggi: Vec<(&str, &str, &str)>,
+    ) -> RispostaDocumentoSpesa {
         RispostaDocumentoSpesa {
             esito_chiamata: "OK".into(),
             protocollo: protocollo.map(str::to_string),
@@ -166,7 +204,10 @@ mod tests {
             Operazione::Cancellazione.elemento_richiesta(),
             "cancellazioneDocumentoSpesaRequest"
         );
-        assert_eq!(Operazione::Rimborso.elemento_richiesta(), "rimborsoDocumentoSpesaRequest");
+        assert_eq!(
+            Operazione::Rimborso.elemento_richiesta(),
+            "rimborsoDocumentoSpesaRequest"
+        );
     }
 
     #[test]
@@ -192,5 +233,34 @@ mod tests {
     fn senza_protocollo_non_e_accettata() {
         assert!(!risposta(None, vec![]).accettata());
         assert!(!risposta(Some("  "), vec![]).accettata());
+    }
+
+    #[test]
+    fn la_categoria_classifica_i_valori_noti_del_sistema_ts() {
+        let msg = |tipo: &str| MessaggioEsito {
+            codice: "X".into(),
+            descrizione: "d".into(),
+            tipo: tipo.into(),
+        };
+        assert_eq!(msg("E").categoria(), CategoriaMessaggio::Errore);
+        assert_eq!(
+            msg("e").categoria(),
+            CategoriaMessaggio::Errore,
+            "senza distinguere maiuscole"
+        );
+        assert_eq!(msg("W").categoria(), CategoriaMessaggio::Avviso);
+        assert_eq!(msg("I").categoria(), CategoriaMessaggio::Informazione);
+    }
+
+    #[test]
+    fn un_tipo_non_documentato_diventa_sconosciuto_senza_perdere_il_valore() {
+        let msg = MessaggioEsito {
+            codice: "X".into(),
+            descrizione: "d".into(),
+            tipo: "Z".into(),
+        };
+        assert_eq!(msg.categoria(), CategoriaMessaggio::Sconosciuta);
+        // Il valore originale resta leggibile, non viene sovrascritto
+        assert_eq!(msg.tipo, "Z");
     }
 }

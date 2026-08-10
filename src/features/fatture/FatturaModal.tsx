@@ -363,7 +363,15 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
                 options={INVOICE_TYPE_OPTIONS}
                 value={form.invoiceType}
                 onChange={(e) => {
-                  set('invoiceType', e.target.value)
+                  const tipo = e.target.value as InvoiceType | ''
+                  setForm((prev) => ({
+                    ...prev,
+                    invoiceType: tipo,
+                    // Il Sistema TS riguarda solo le cartacee: passando a
+                    // elettronica i dati vanno azzerati, altrimenti
+                    // resterebbero nell'archivio senza essere più visibili.
+                    sistemaTs: tipo === 'cartacea' ? prev.sistemaTs : undefined,
+                  }))
                   // Reset errori specifici al cambio tipo
                   setErrors({})
                   setPendingGeneratedFile(null)
@@ -576,27 +584,10 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
               </>
             )}
 
-            {/* Sistema Tessera Sanitaria — indipendente dal tipo di fattura */}
-            {form.invoiceType && (
-              <SistemaTsSection
-                dati={form.sistemaTs}
-                onChange={(dati) => setForm((prev) => ({ ...prev, sistemaTs: dati }))}
-                dataEmissione={form.issueDate}
-                numeroFattura={form.invoiceNumber}
-                bloccato={statoTs === 'inviata' || statoTs === 'variata'}
-              />
-            )}
-
-            {/* Stato e invio: solo su una fattura già salvata, perché la
-                trasmissione ha bisogno di dati stabili e di un identificativo. */}
-            {invoice && form.sistemaTs && (
-              <StatoSistemaTsBox
-                invoice={invoice}
-                onAggiornato={() => setVersioneTs((v) => v + 1)}
-              />
-            )}
-
             {/* Avviso template mancante — solo per cartacea */}
+            <div className="flex items-center mt-3">
+              <span className="text-sm">Stato file fattura</span>
+            </div>
             {!isElettronica && !canGenerate && (
               <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
                 <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
@@ -608,7 +599,7 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
 
             {/* File generato/allegato pronto — solo cartacea */}
             {!isElettronica && pendingGeneratedFile && !generateError && (
-              <div className="flex items-start gap-3 p-3 bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-xl">
+              <div className="flex items-start mt-0 gap-3 p-3 bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-xl">
                 <CheckCircle size={16} className="text-teal-500 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-teal-700 dark:text-teal-400">
                   File <strong>{pendingGeneratedFile.fileName}</strong> salvato in{' '}
@@ -623,6 +614,26 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
                 <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-red-700 dark:text-red-400">{generateError}</p>
               </div>
+            )}
+
+            {/* Sistema Tessera Sanitaria: solo per le fatture cartacee.
+                Le elettroniche seguono un percorso proprio e non passano da qui. */}
+            {form.invoiceType === 'cartacea' && (
+              <SistemaTsSection
+                dati={form.sistemaTs}
+                onChange={(dati) => setForm((prev) => ({ ...prev, sistemaTs: dati }))}
+                dataEmissione={form.issueDate}
+                bloccato={statoTs === 'inviata' || statoTs === 'variata'}
+              />
+            )}
+
+            {/* Stato e invio: solo su una fattura cartacea già salvata, perché
+                la trasmissione ha bisogno di dati stabili e di un identificativo. */}
+            {invoice && form.invoiceType === 'cartacea' && form.sistemaTs && (
+              <StatoSistemaTsBox
+                invoice={invoice}
+                onAggiornato={() => setVersioneTs((v) => v + 1)}
+              />
             )}
 
             {/* Footer */}

@@ -19,6 +19,7 @@ import {
 } from '../types/sistemaTs'
 import type {
   AmbienteTs,
+  MessaggioTs,
   OperazioneTs,
   StatoSistemaTS,
   TentativoTs,
@@ -157,13 +158,19 @@ export const sistemaTsService = {
     const idx = elenco.findIndex((t) => t.fatturaId === fatturaId)
     const corrente = elenco[idx]
 
+    // Riepilogo per il pannello dello stato: l'errore ha la precedenza,
+    // altrimenti si mostra il primo messaggio disponibile (es. un avviso).
+    const messaggi = tentativo.messaggi ?? []
+    const messaggioRiepilogo =
+      messaggi.find((m) => m.categoria === 'errore') ?? messaggi[0]
+
     const aggiornata: TrasmissioneTs = {
       ...corrente,
       stato: nuovoStato,
       protocollo: tentativo.protocollo ?? corrente.protocollo,
       dataInvio: tentativo.riuscito ? tentativo.istante : corrente.dataInvio,
-      codiceEsito: tentativo.codice,
-      descrizioneEsito: tentativo.descrizione,
+      codiceEsito: messaggioRiepilogo?.codice ?? tentativo.codice,
+      descrizioneEsito: messaggioRiepilogo?.descrizione ?? tentativo.descrizione,
       tentativi: [...corrente.tentativi, { ...tentativo, id: generateId('tent') }],
       updatedAt: new Date().toISOString(),
     }
@@ -190,13 +197,17 @@ export const sistemaTsService = {
 
 // ─── Trasmissione ─────────────────────────────────────────────────────────────
 
-/** Esito restituito dal backend, già tradotto in termini applicativi. */
+/**
+ * Esito restituito dal backend, già tradotto in termini applicativi.
+ *
+ * `accettata` e `messaggi` sono indipendenti: un'operazione accettata può
+ * comunque portare avvisi, e un rifiuto può contenere più di un messaggio.
+ */
 export interface EsitoTrasmissione {
   accettata: boolean
   protocollo: string | null
   ambiente: string
-  codice: string | null
-  descrizione: string | null
+  messaggi: MessaggioTs[]
 }
 
 /** Errore strutturato proveniente dal modulo Rust. */
@@ -216,6 +227,47 @@ function normalizzaErrore(err: unknown): ErroreTrasmissione {
     genere: 'sconosciuto',
     messaggio: err instanceof Error ? err.message : String(err),
   }
+}
+
+// ─── Credenziali ──────────────────────────────────────────────────────────────
+
+/**
+ * Cosa l'interfaccia sa delle credenziali: **se** ci sono, non quali sono.
+ * Parola chiave e pincode vivono nel portachiavi del sistema e non tornano
+ * mai al frontend.
+ */
+export interface StatoCredenzialiTs {
+  parolaChiavePresente: boolean
+  pincodePresente: boolean
+  complete: boolean
+}
+
+const CREDENZIALI_ASSENTI: StatoCredenzialiTs = {
+  parolaChiavePresente: false,
+  pincodePresente: false,
+  complete: false,
+}
+
+export async function credenzialiStato(): Promise<StatoCredenzialiTs> {
+  if (!isTauri()) return CREDENZIALI_ASSENTI
+  const { invoke } = await import('@tauri-apps/api/core')
+  return invoke<StatoCredenzialiTs>('sistema_ts_credenziali_stato')
+}
+
+export async function credenzialiSalva(
+  parolaChiave: string,
+  pincode: string,
+): Promise<StatoCredenzialiTs> {
+  const { invoke } = await import('@tauri-apps/api/core')
+  return invoke<StatoCredenzialiTs>('sistema_ts_credenziali_salva', {
+    parolaChiave,
+    pincode,
+  })
+}
+
+export async function credenzialiElimina(): Promise<StatoCredenzialiTs> {
+  const { invoke } = await import('@tauri-apps/api/core')
+  return invoke<StatoCredenzialiTs>('sistema_ts_credenziali_elimina')
 }
 
 /** Ambiente configurato nel backend, mostrato nell'interfaccia. */
@@ -238,6 +290,8 @@ export function datiPerTrasmissione(
   return {
     partitaIva: profilo?.partitaIva ?? '',
     dispositivo: profilo?.dispositivo ?? 1,
+    // Identifica l'erogatore ed è anche il codice identificativo per l'accesso
+    codiceFiscaleProfessionista: profilo?.codiceFiscale ?? '',
     numeroFattura: invoice.invoiceNumber,
     dataEmissione: invoice.issueDate,
     importo: invoice.amount,
@@ -291,8 +345,7 @@ export async function trasmetti(
         istante,
         riuscito: esito.accettata,
         protocollo: esito.protocollo ?? undefined,
-        codice: esito.codice ?? undefined,
-        descrizione: esito.descrizione ?? undefined,
+        messaggi: esito.messaggi,
       },
       esito.accettata ? statoDopo(operazione) : 'errore',
     )

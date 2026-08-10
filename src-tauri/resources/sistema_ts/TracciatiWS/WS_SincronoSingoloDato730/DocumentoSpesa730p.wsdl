@@ -109,7 +109,7 @@
   
   <wsdl:service name="DocumentoSpesa730pPort">
     <wsdl:port name="DocumentoSpesa730pPort" binding="tns:DocumentoSpesa730pServicePortBinding">
-      <soap:address location="http://localhost:9080/DocumentoSpesa730pWeb/DocumentoSpesa730pPort"/>
+      <soap:address location="http://127.0.0.1:8089/DocumentoSpesa730pWeb/DocumentoSpesa730pPort"/>
     </wsdl:port>
   </wsdl:service>
 

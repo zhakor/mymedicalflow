@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Badge } from '../components/ui/Badge'
+import { CredenzialiSistemaTsCard } from '../features/profilo/CredenzialiSistemaTsCard'
 import { GENDER_LABELS, GENDER_OPTIONS } from '../types/paziente'
 import { useProfiloStore } from '../stores/profiloStore'
 import type { ProfiloProfessionista } from '../types'
@@ -297,6 +298,11 @@ export function ProfiloPage() {
           )}
         </div>
       </Card>
+
+      {/* Credenziali per la trasmissione al Sistema TS. Stanno in una card a
+          parte perché non appartengono all'anagrafica: vivono nel portachiavi
+          del sistema, non nell'archivio dell'app. */}
+      <CredenzialiSistemaTsCard codiceFiscale={profilo?.codiceFiscale} />
     </div>
   )
 }

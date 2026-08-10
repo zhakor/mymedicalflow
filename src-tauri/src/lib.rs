@@ -224,7 +224,10 @@ pub fn run() {
             segna_copie_configurate,
             destinazioni_suggerite,
             sistema_ts::commands::sistema_ts_configurazione,
-            sistema_ts::commands::sistema_ts_trasmetti
+            sistema_ts::commands::sistema_ts_trasmetti,
+            sistema_ts::commands::sistema_ts_credenziali_stato,
+            sistema_ts::commands::sistema_ts_credenziali_salva,
+            sistema_ts::commands::sistema_ts_credenziali_elimina
         ])
         // Copia di sicurezza silenziosa alla chiusura della finestra.
         // Viene eseguita qui, e non nel frontend, per due motivi: avviene anche

@@ -7,10 +7,11 @@ import {
   UserCircle,
 } from 'lucide-react'
 import { clsx } from 'clsx'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { iconaWhite, iconaBlue, logoBlu, logoBianco } from '../../assets/logos'
 import { useProfiloStore } from '../../stores/profiloStore'
+import { versioneApp } from '../../lib/updaterService'
 
 export type NavRoute =
   | 'dashboard'
@@ -45,6 +46,11 @@ export function Sidebar({ activeRoute, onNavigate, collapsed }: SidebarProps) {
   const profilo = useProfiloStore((s) => s.profilo)
   const fotoProfilo = profilo?.fotoProfilo
   const [tooltip, setTooltip] = useState<{ label: string; y: number } | null>(null)
+  const [versione, setVersione] = useState<string | null>(null)
+
+  useEffect(() => {
+    versioneApp().then(setVersione)
+  }, [])
 
   return (
     <aside className="h-full bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 flex flex-col overflow-hidden">
@@ -121,8 +127,12 @@ export function Sidebar({ activeRoute, onNavigate, collapsed }: SidebarProps) {
 
       {/* Footer sidebar */}
       <div className={clsx('border-t border-gray-100 dark:border-gray-800', collapsed ? 'p-2' : 'p-4')}>
-        {!collapsed && <p className="text-xs text-gray-400 text-center">v0.1.0 — MyMedicalFlow</p>}
-        {collapsed && <p className="text-xs text-gray-400 text-center">v0.1</p>}
+        {!collapsed && (
+          <p className="text-xs text-gray-400 text-center">
+            {versione ? `v${versione}` : ''} — MyMedicalFlow
+          </p>
+        )}
+        {collapsed && <p className="text-xs text-gray-400 text-center">{versione ? `v${versione}` : ''}</p>}
       </div>
     </aside>
   )

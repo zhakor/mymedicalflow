@@ -194,8 +194,13 @@ if ($diverse) { Interrompi "Le versioni non coincidono tutte con $Versione." }
 Scrivi-Ok "Tutte allineate a $Versione"
 
 if ($SoloVerifica) {
-    Write-Host "`n── Modalità SoloVerifica: nessun commit, tag o push. ──" -ForegroundColor Yellow
-    Write-Host "   I file sono stati modificati: usa 'git checkout -- .' per annullare.`n"
+    # Ripristina da sé: una verifica non deve lasciare l'albero sporco, o il
+    # rilascio successivo si bloccherebbe sui file avanzati da questa prova.
+    # Cargo.lock è incluso: viene riscritto da `cargo test` con la nuova versione.
+    git checkout -- package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json
+    Write-Host "`n── Modalità SoloVerifica ──" -ForegroundColor Yellow
+    Write-Host "   Tutto verificato. Nessun commit, tag o push."
+    Write-Host "   I file sono stati riportati alla versione $versioneAttuale.`n"
     exit 0
 }
 

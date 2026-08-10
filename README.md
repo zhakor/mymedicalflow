@@ -16,8 +16,8 @@ Scarica sempre l'ultima versione dalla pagina **[Releases](https://github.com/zh
 
 | File | Tipo | Piattaforma |
 |---|---|---|
-| `MyMedicalFlow_(https://github.com/zhakor/mymedicalflow/releases/latest)_x64_en-US.msi` | Installer MSI | Windows 64-bit |
-| `MyMedicalFlow_(https://github.com/zhakor/mymedicalflow/releases/latest)_x64-setup.exe` | Installer NSIS (.exe) | Windows 64-bit |
+| `MyMedicalFlow_x64_en-US.msi` | Installer MSI | Windows 64-bit |
+| `MyMedicalFlow_x64-setup.exe` | Installer NSIS (.exe) | Windows 64-bit |
 
 > Per costruire l'installer localmente vedi la sezione [Build installer](#build-installer).
 

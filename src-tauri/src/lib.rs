@@ -1,7 +1,7 @@
 // Previene finestra console aggiuntiva su Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use base64::{Engine, engine::general_purpose::STANDARD};
+use base64::{engine::general_purpose::STANDARD, Engine};
 use tauri::Manager;
 
 mod crypto;
@@ -86,8 +86,7 @@ fn save_text_file(path: String, content: String) -> Result<String, String> {
         std::fs::create_dir_all(parent).map_err(|e| format!("Errore creazione cartella: {e}"))?;
     }
 
-    std::fs::write(&path, content.as_bytes())
-        .map_err(|e| format!("Errore scrittura file: {e}"))?;
+    std::fs::write(&path, content.as_bytes()).map_err(|e| format!("Errore scrittura file: {e}"))?;
 
     Ok(path.to_string_lossy().into_owned())
 }
@@ -109,6 +108,19 @@ fn secure_store_save(app: tauri::AppHandle, data: String) -> Result<(), String> 
 #[tauri::command]
 fn codice_recupero(app: tauri::AppHandle) -> Result<String, String> {
     secure_store::codice_recupero(&app)
+}
+
+/// Stato di leggibilità della chiave locale, interrogato prima di aprire
+/// l'archivio: distingue un blocco DPAPI (altro account/PC, risolvibile col
+/// codice di recupero) da tutti gli altri stati, già gestiti da `secure_store`.
+#[tauri::command]
+fn chiave_stato(app: tauri::AppHandle) -> Result<secure_store::StatoChiave, String> {
+    secure_store::chiave_stato(&app)
+}
+
+#[tauri::command]
+fn chiave_recupera_da_codice(app: tauri::AppHandle, codice: String) -> Result<(), String> {
+    secure_store::chiave_recupera_da_codice(&app, &codice)
 }
 
 // ─── Copie di sicurezza ───────────────────────────────────────────────────────
@@ -174,7 +186,13 @@ fn destinazioni_suggerite() -> Vec<String> {
 
     let home = std::env::var(if cfg!(windows) { "USERPROFILE" } else { "HOME" });
     if let Ok(home) = home {
-        for nome in ["OneDrive", "Dropbox", "Google Drive", "iCloudDrive", "Nextcloud"] {
+        for nome in [
+            "OneDrive",
+            "Dropbox",
+            "Google Drive",
+            "iCloudDrive",
+            "Nextcloud",
+        ] {
             aggiungi(std::path::PathBuf::from(&home).join(nome));
         }
     }
@@ -195,6 +213,8 @@ pub fn run() {
             secure_store_load,
             secure_store_save,
             codice_recupero,
+            chiave_stato,
+            chiave_recupera_da_codice,
             backup_elenca,
             backup_crea,
             backup_apri,
@@ -282,7 +302,10 @@ mod tests {
     #[test]
     fn rimuove_i_caratteri_di_controllo() {
         let pulito = sanitize_file_name("Fattura\n1\t2\0.docx");
-        assert!(!pulito.chars().any(char::is_control), "controllo residuo: {pulito:?}");
+        assert!(
+            !pulito.chars().any(char::is_control),
+            "controllo residuo: {pulito:?}"
+        );
     }
 
     #[test]

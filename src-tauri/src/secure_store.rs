@@ -8,6 +8,9 @@
 //! Unica eccezione temporanea: la lettura degli archivi nel vecchio formato
 //! `MMF1` protetto da DPAPI, necessaria a convertire i dati esistenti al primo
 //! avvio. Va rimossa quando nessuna installazione userà più quel formato.
+//!
+//! La copia locale della chiave (`chiave.dat`), invece, è protetta da DPAPI
+//! quando disponibile: vedi la sezione "Chiave di installazione" più sotto.
 
 use crate::crypto::{self, CHIAVE_LEN};
 use std::path::{Path, PathBuf};
@@ -49,29 +52,247 @@ fn cartella_backup_locale(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 /// non lascia mai un file troncato al posto di uno valido.
 fn scrivi_atomico(percorso: &Path, contenuto: &[u8]) -> Result<(), String> {
     let tmp = percorso.with_extension("tmp");
-    std::fs::write(&tmp, contenuto).map_err(|e| format!("scrittura di {}: {e}", percorso.display()))?;
-    std::fs::rename(&tmp, percorso).map_err(|e| format!("salvataggio di {}: {e}", percorso.display()))
+    std::fs::write(&tmp, contenuto)
+        .map_err(|e| format!("scrittura di {}: {e}", percorso.display()))?;
+    std::fs::rename(&tmp, percorso)
+        .map_err(|e| format!("salvataggio di {}: {e}", percorso.display()))
+}
+
+// ─── DPAPI: protezione della copia locale della chiave ────────────────────────
+//
+// Lega il blob a chiave.dat all'account Windows corrente. Usato solo per la
+// chiave in questo file: archivio e backup restano indipendenti dal PC, così
+// da poter essere aperti ovunque con il codice di recupero.
+mod dpapi {
+    #[cfg(windows)]
+    pub fn protect(dati: &[u8]) -> Result<Vec<u8>, String> {
+        use windows::core::PCWSTR;
+        use windows::Win32::Foundation::{LocalFree, HLOCAL};
+        use windows::Win32::Security::Cryptography::{
+            CryptProtectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
+        };
+
+        let input = CRYPT_INTEGER_BLOB {
+            cbData: dati.len() as u32,
+            pbData: dati.as_ptr() as *mut u8,
+        };
+        let mut output = CRYPT_INTEGER_BLOB::default();
+
+        unsafe {
+            CryptProtectData(
+                &input,
+                PCWSTR::null(),
+                None,
+                None,
+                None,
+                CRYPTPROTECT_UI_FORBIDDEN,
+                &mut output,
+            )
+            .map_err(|e| format!("protezione DPAPI non riuscita: {e}"))?;
+            if output.pbData.is_null() {
+                return Ok(Vec::new());
+            }
+            let copia = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
+            let _ = LocalFree(Some(HLOCAL(output.pbData as *mut _)));
+            Ok(copia)
+        }
+    }
+
+    #[cfg(windows)]
+    pub fn unprotect(blob: &[u8]) -> Result<Vec<u8>, String> {
+        use windows::Win32::Foundation::{LocalFree, HLOCAL};
+        use windows::Win32::Security::Cryptography::{
+            CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
+        };
+
+        let input = CRYPT_INTEGER_BLOB {
+            cbData: blob.len() as u32,
+            pbData: blob.as_ptr() as *mut u8,
+        };
+        let mut output = CRYPT_INTEGER_BLOB::default();
+
+        unsafe {
+            CryptUnprotectData(
+                &input,
+                None,
+                None,
+                None,
+                None,
+                CRYPTPROTECT_UI_FORBIDDEN,
+                &mut output,
+            )
+            .map_err(|e| format!("lettura della chiave locale non riuscita: {e}"))?;
+            if output.pbData.is_null() {
+                return Ok(Vec::new());
+            }
+            let copia = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
+            let _ = LocalFree(Some(HLOCAL(output.pbData as *mut _)));
+            Ok(copia)
+        }
+    }
+
+    #[cfg(not(windows))]
+    pub fn protect(_dati: &[u8]) -> Result<Vec<u8>, String> {
+        Err("DPAPI non disponibile su questo sistema".into())
+    }
+
+    #[cfg(not(windows))]
+    pub fn unprotect(_blob: &[u8]) -> Result<Vec<u8>, String> {
+        Err("DPAPI non disponibile su questo sistema".into())
+    }
 }
 
 // ─── Chiave di installazione ──────────────────────────────────────────────────
+//
+// La chiave AES a 256 bit non cambia mai per un'installazione: cambia solo il
+// modo in cui la copia locale viene custodita su disco.
+//
+// - Formato legacy (testo): stesso alfabeto del codice di recupero mostrato
+//   all'utente, in chiaro. Prodotto dalle versioni precedenti.
+// - Formato MMFK (binario): intestazione + blob opaco prodotto da
+//   CryptProtectData, leggibile solo dall'account Windows che l'ha creato.
+//
+// La migrazione da legacy a MMFK è automatica, silenziosa e "fail-safe": il
+// file legacy non viene mai sostituito finché il nuovo blob non è stato
+// verificato per intero (scrittura, rilettura, decifratura, confronto byte a
+// byte con la chiave originale). Un fallimento in qualunque punto lascia il
+// file legacy intatto: la migrazione verrà ritentata al prossimo avvio.
+
+const MMFK_MAGIC: &[u8; 4] = b"MMFK";
+const MMFK_VERSIONE: u8 = 2;
+const MMFK_HEADER_LEN: usize = 5;
+
+fn e_formato_mmfk(raw: &[u8]) -> bool {
+    raw.len() >= MMFK_HEADER_LEN && &raw[..4] == MMFK_MAGIC
+}
+
+fn impacchetta_mmfk(blob: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(MMFK_HEADER_LEN + blob.len());
+    out.extend_from_slice(MMFK_MAGIC);
+    out.push(MMFK_VERSIONE);
+    out.extend_from_slice(blob);
+    out
+}
+
+/// Scrive una chiave nuova nel formato più sicuro disponibile: MMFK (DPAPI) su
+/// Windows, testo legacy altrove. Non genera mai un file in chiaro temporaneo:
+/// il buffer scritto è già il formato finale.
+fn scrivi_chiave_nuova(percorso: &Path, chiave: &[u8; CHIAVE_LEN]) -> Result<(), String> {
+    match dpapi::protect(chiave) {
+        Ok(blob) => scrivi_atomico(percorso, &impacchetta_mmfk(&blob)),
+        Err(_) => scrivi_atomico(percorso, crypto::chiave_in_codice(chiave).as_bytes()),
+    }
+}
+
+/// Tenta la migrazione del formato legacy a MMFK. Fallisce in silenzio: solo
+/// un log non sensibile, mai la chiave o il codice di recupero.
+fn migra_a_mmfk(percorso: &Path, chiave: &[u8; CHIAVE_LEN]) {
+    let risultato: Result<(), String> = (|| {
+        let blob = dpapi::protect(chiave)?;
+        let pacchetto = impacchetta_mmfk(&blob);
+
+        let tmp = percorso.with_extension("mmfk-tmp");
+        std::fs::write(&tmp, &pacchetto).map_err(|e| e.to_string())?;
+        let riletto = std::fs::read(&tmp).map_err(|e| e.to_string())?;
+        let verificata = dpapi::unprotect(&riletto[MMFK_HEADER_LEN..])?;
+        if verificata.as_slice() != chiave.as_slice() {
+            let _ = std::fs::remove_file(&tmp);
+            return Err("verifica dopo la scrittura non corrispondente".into());
+        }
+
+        std::fs::rename(&tmp, percorso).map_err(|e| e.to_string())?;
+        Ok(())
+    })();
+
+    match risultato {
+        Ok(()) => println!("[MyMedicalFlow] chiave: migrazione a DPAPI completata"),
+        Err(e) => eprintln!(
+            "[MyMedicalFlow] chiave: migrazione a DPAPI non riuscita, si continua con il formato legacy ({e})"
+        ),
+    }
+}
 
 /// Restituisce la chiave, generandola al primo avvio.
+///
+/// Non rigenera mai una chiave nuova se il file esiste ma non è leggibile:
+/// significherebbe rendere per sempre indecifrabile un archivio già esistente.
 pub fn chiave(app: &tauri::AppHandle) -> Result<[u8; CHIAVE_LEN], String> {
     let percorso = cartella_dati(app)?.join(FILE_CHIAVE);
 
-    if percorso.exists() {
-        let testo = std::fs::read_to_string(&percorso)
-            .map_err(|e| format!("lettura della chiave: {e}"))?;
-        return crypto::codice_in_chiave(testo.trim());
+    if !percorso.exists() {
+        let nuova = crypto::genera_chiave();
+        scrivi_chiave_nuova(&percorso, &nuova)?;
+        return Ok(nuova);
     }
 
-    let nuova = crypto::genera_chiave();
-    scrivi_atomico(&percorso, crypto::chiave_in_codice(&nuova).as_bytes())?;
-    Ok(nuova)
+    let raw = std::fs::read(&percorso).map_err(|e| format!("lettura della chiave: {e}"))?;
+
+    if e_formato_mmfk(&raw) {
+        let chiaro = dpapi::unprotect(&raw[MMFK_HEADER_LEN..])
+            .map_err(|e| format!("chiave locale non leggibile su questo account: {e}"))?;
+        return <[u8; CHIAVE_LEN]>::try_from(chiaro.as_slice())
+            .map_err(|_| "chiave locale danneggiata".to_string());
+    }
+
+    let testo = String::from_utf8(raw).map_err(|_| "chiave.dat danneggiato".to_string())?;
+    let chiave_legacy = crypto::codice_in_chiave(testo.trim())?;
+
+    // Su Windows si tenta la migrazione a DPAPI; altrove il formato legacy
+    // resta l'unico disponibile e il tentativo produrrebbe solo log inutili.
+    if cfg!(windows) {
+        migra_a_mmfk(&percorso, &chiave_legacy);
+    }
+
+    Ok(chiave_legacy)
 }
 
 pub fn codice_recupero(app: &tauri::AppHandle) -> Result<String, String> {
     Ok(crypto::chiave_in_codice(&chiave(app)?))
+}
+
+// ─── Stato della chiave e recupero via codice ─────────────────────────────────
+
+/// Esito della verifica di leggibilità della chiave locale, senza generarne
+/// una nuova né alterare alcun file.
+#[derive(serde::Serialize)]
+#[serde(tag = "tipo", rename_all = "camelCase")]
+pub enum StatoChiave {
+    Ok,
+    RichiedeCodiceRecupero,
+}
+
+/// Va interrogato dal frontend prima di aprire l'archivio, per distinguere un
+/// fallimento DPAPI (cartella copiata su un altro account o PC, risolvibile
+/// col codice di recupero) da tutti gli altri stati, già gestiti da `chiave`.
+pub fn chiave_stato(app: &tauri::AppHandle) -> Result<StatoChiave, String> {
+    let percorso = cartella_dati(app)?.join(FILE_CHIAVE);
+    let Ok(raw) = std::fs::read(&percorso) else {
+        return Ok(StatoChiave::Ok);
+    };
+    if e_formato_mmfk(&raw) && dpapi::unprotect(&raw[MMFK_HEADER_LEN..]).is_err() {
+        return Ok(StatoChiave::RichiedeCodiceRecupero);
+    }
+    Ok(StatoChiave::Ok)
+}
+
+/// Ripristina l'accesso locale con il codice di recupero, quando la copia
+/// protetta da DPAPI non è più leggibile. Se esiste già un archivio il codice
+/// deve decifrarlo correttamente: altrimenti non tocca `chiave.dat` e
+/// restituisce un errore, così un codice sbagliato non può mai sostituire una
+/// chiave valida ma temporaneamente illeggibile.
+pub fn chiave_recupera_da_codice(app: &tauri::AppHandle, codice: &str) -> Result<(), String> {
+    let chiave = crypto::codice_in_chiave(codice.trim())?;
+
+    let percorso_arch = percorso_archivio(app)?;
+    if percorso_arch.exists() {
+        let raw = std::fs::read(&percorso_arch).map_err(|e| format!("lettura archivio: {e}"))?;
+        if !raw.is_empty() {
+            crypto::decifra(&raw, &chiave).map_err(|_| "codice di recupero errato".to_string())?;
+        }
+    }
+
+    let percorso_chiave = cartella_dati(app)?.join(FILE_CHIAVE);
+    scrivi_chiave_nuova(&percorso_chiave, &chiave)
 }
 
 // ─── Preferenze gestite dal backend ───────────────────────────────────────────
@@ -285,7 +506,10 @@ pub fn crea_backup(app: &tauri::AppHandle) -> Result<EsitoBackup, String> {
 
     let istante = epoch_ms();
     let nome = nome_backup(istante);
-    let mut esito = EsitoBackup { creato_il: Some(istante), ..Default::default() };
+    let mut esito = EsitoBackup {
+        creato_il: Some(istante),
+        ..Default::default()
+    };
 
     let mut destinazioni: Vec<PathBuf> = vec![cartella_backup_locale(app)?];
     if let Some(cartella) = preferenze(app).cartella_backup {
@@ -373,8 +597,7 @@ mod legacy {
             if output.pbData.is_null() {
                 return Ok(Vec::new());
             }
-            let copia =
-                std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
+            let copia = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
             let _ = LocalFree(Some(HLOCAL(output.pbData as *mut _)));
             Ok(copia)
         }
@@ -392,7 +615,12 @@ mod tests {
 
     #[test]
     fn il_nome_del_backup_conserva_l_istante() {
-        for ms in [0_u64, 1_754_000_000_000, 1_786_219_300_000, 1_709_208_000_000] {
+        for ms in [
+            0_u64,
+            1_754_000_000_000,
+            1_786_219_300_000,
+            1_709_208_000_000,
+        ] {
             let atteso = ms - (ms % 1000);
             let nome = nome_backup(ms);
             assert!(nome.starts_with(PREFISSO_BACKUP));
@@ -428,12 +656,21 @@ mod tests {
 
     #[test]
     fn le_date_civili_sono_reversibili() {
-        for ms in [0_u64, 1_709_208_000_000, 1_786_219_300_000, 4_102_444_800_000] {
+        for ms in [
+            0_u64,
+            1_709_208_000_000,
+            1_786_219_300_000,
+            4_102_444_800_000,
+        ] {
             let (a, m, g, h, mi, s) = crypto_data(ms);
             let giorni = giorni_da_civile(a, m, g);
-            let ricostruito = ((giorni * 86_400 + h as i64 * 3600 + mi as i64 * 60 + s as i64)
-                * 1000) as u64;
-            assert_eq!(ricostruito, ms - (ms % 1000), "andata e ritorno fallito per {ms}");
+            let ricostruito =
+                ((giorni * 86_400 + h as i64 * 3600 + mi as i64 * 60 + s as i64) * 1000) as u64;
+            assert_eq!(
+                ricostruito,
+                ms - (ms % 1000),
+                "andata e ritorno fallito per {ms}"
+            );
         }
     }
 
@@ -442,15 +679,117 @@ mod tests {
         // Nuovo formato: nessuna conversione
         let chiave = crypto::genera_chiave();
         let nuovo = crypto::cifra(b"{}", &chiave).unwrap();
-        assert!(legacy::converti_se_vecchio_formato(&nuovo).unwrap().is_none());
+        assert!(legacy::converti_se_vecchio_formato(&nuovo)
+            .unwrap()
+            .is_none());
 
         // Vecchio formato in chiaro: convertito
         let mut vecchio = b"MMF1".to_vec();
         vecchio.push(0);
         vecchio.extend_from_slice(br#"{"pazienti":"[]"}"#);
         assert_eq!(
-            legacy::converti_se_vecchio_formato(&vecchio).unwrap().as_deref(),
+            legacy::converti_se_vecchio_formato(&vecchio)
+                .unwrap()
+                .as_deref(),
             Some(r#"{"pazienti":"[]"}"#)
         );
+    }
+
+    #[test]
+    fn distingue_il_formato_mmfk_dal_testo_legacy() {
+        let chiave = crypto::genera_chiave();
+        let legacy_testo = crypto::chiave_in_codice(&chiave);
+        assert!(!e_formato_mmfk(legacy_testo.as_bytes()));
+
+        let pacchetto = impacchetta_mmfk(b"blob-di-prova");
+        assert!(e_formato_mmfk(&pacchetto));
+        assert!(!e_formato_mmfk(b"MMF1x"));
+        assert!(!e_formato_mmfk(b"MM"));
+    }
+
+    #[cfg(windows)]
+    fn percorso_temp_di_prova(nome: &str) -> PathBuf {
+        let s = crypto::genera_chiave();
+        std::env::temp_dir().join(format!(
+            "mmf_test_{nome}_{:02x}{:02x}{:02x}{:02x}.tmp",
+            s[0], s[1], s[2], s[3]
+        ))
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn dpapi_protect_e_unprotect_sono_reversibili() {
+        let chiave = crypto::genera_chiave();
+        let blob = dpapi::protect(&chiave).unwrap();
+        assert_ne!(
+            blob,
+            chiave.to_vec(),
+            "il blob non deve contenere la chiave in chiaro"
+        );
+        let tornata = dpapi::unprotect(&blob).unwrap();
+        assert_eq!(tornata, chiave.to_vec());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn un_blob_dpapi_corrotto_viene_rifiutato_senza_generare_nulla() {
+        let chiave = crypto::genera_chiave();
+        let mut blob = dpapi::protect(&chiave).unwrap();
+        let ultimo = blob.len() - 1;
+        blob[ultimo] ^= 0xFF;
+        assert!(dpapi::unprotect(&blob).is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn la_migrazione_conserva_chiave_e_codice_di_recupero() {
+        let chiave = crypto::genera_chiave();
+        let codice_originale = crypto::chiave_in_codice(&chiave);
+        let percorso = percorso_temp_di_prova("migrazione");
+        std::fs::write(&percorso, codice_originale.as_bytes()).unwrap();
+
+        migra_a_mmfk(&percorso, &chiave);
+
+        let raw = std::fs::read(&percorso).unwrap();
+        assert!(e_formato_mmfk(&raw), "il file non è stato migrato a MMFK");
+        let migrata = dpapi::unprotect(&raw[MMFK_HEADER_LEN..]).unwrap();
+        assert_eq!(migrata, chiave.to_vec());
+        assert_eq!(crypto::chiave_in_codice(&chiave), codice_originale);
+
+        let _ = std::fs::remove_file(&percorso);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn archivio_e_backup_restano_decifrabili_dopo_la_migrazione() {
+        let chiave = crypto::genera_chiave();
+        let dati: &[u8] = br#"{"pazienti":[{"lastName":"Verdi"}]}"#;
+        let cifrato = crypto::cifra(dati, &chiave).unwrap();
+
+        let percorso = percorso_temp_di_prova("archivio");
+        std::fs::write(&percorso, crypto::chiave_in_codice(&chiave).as_bytes()).unwrap();
+        migra_a_mmfk(&percorso, &chiave);
+
+        let raw = std::fs::read(&percorso).unwrap();
+        let chiave_dopo = dpapi::unprotect(&raw[MMFK_HEADER_LEN..]).unwrap();
+        let arr = <[u8; CHIAVE_LEN]>::try_from(chiave_dopo.as_slice()).unwrap();
+        assert_eq!(crypto::decifra(&cifrato, &arr).unwrap(), dati);
+
+        let _ = std::fs::remove_file(&percorso);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn una_migrazione_impossibile_non_crea_nulla_di_parziale() {
+        let chiave = crypto::genera_chiave();
+        // Cartella inesistente: la scrittura del temporaneo fallisce e la
+        // migrazione si ferma prima di toccare qualunque file.
+        let percorso = std::env::temp_dir()
+            .join("mmf_cartella_inesistente_xyz")
+            .join("chiave.dat");
+
+        migra_a_mmfk(&percorso, &chiave);
+
+        assert!(!percorso.exists());
     }
 }

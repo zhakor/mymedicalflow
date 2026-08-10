@@ -1,6 +1,6 @@
 [package]
 name = "mymedicalflow"
-version = "0.3.0"
+version = "0.3.1"
 description = "MyMedicalFlow - Gestionale medico desktop offline"
 authors = ["MyMedicalFlow"]
 edition = "2021"
@@ -21,7 +21,7 @@ tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
-# La feature shellexecute-on-windows Ã¨ obbligatoria: senza, `open` ricade su
+# La feature shellexecute-on-windows ÃƒÂ¨ obbligatoria: senza, `open` ricade su
 # `cmd /c start`, che interpreta il percorso come riga di comando.
 open = { version = "5", features = ["shellexecute-on-windows"] }
 # Cifratura di archivio e copie: AES-256-GCM con la chiave di installazione.

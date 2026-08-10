@@ -8,6 +8,7 @@
 //! `endpointServiziAltriProfessionisti.txt` del Development Kit ver. 20240214,
 //! copiati in `src-tauri/resources/sistema_ts/`.
 
+pub mod client;
 pub mod commands;
 pub mod config;
 pub mod crypto;

@@ -7,7 +7,9 @@ import type {
   PaginatedAppointments,
 } from '../types/appuntamento'
 
-const KEY = 'appuntamenti'
+export const STORAGE_KEY = 'appuntamenti'
+
+const KEY = STORAGE_KEY
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

@@ -1,9 +1,11 @@
 import { storageService } from './storageService'
 import type { ImpostazioniApp } from '../types'
 
-const KEY = 'impostazioni'
+export const STORAGE_KEY = 'impostazioni'
 
-const DEFAULT_IMPOSTAZIONI: ImpostazioniApp = {
+const KEY = STORAGE_KEY
+
+export const DEFAULT_IMPOSTAZIONI: ImpostazioniApp = {
   tema: 'dark',
 }
 

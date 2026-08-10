@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { Select } from '../components/ui/Select'
 import { useProfiloStore } from '../stores/profiloStore'
 import type { ProfiloProfessionista } from '../types'
+import { GENDER_OPTIONS } from '../types/paziente'
 import { iconaWhite } from '../assets/logos'
 import { LogIn } from 'lucide-react'
 import { validaPIva } from '../lib/validazioni'
@@ -12,6 +14,7 @@ interface Errori {
   professione?: string
   nome?: string
   cognome?: string
+  sesso?: string
   partitaIva?: string
 }
 
@@ -20,6 +23,7 @@ function valida(form: Partial<ProfiloProfessionista>): Errori {
   if (!form.professione?.trim()) errori.professione = 'Inserisci la tua professione.'
   if (!form.nome?.trim()) errori.nome = 'Il nome è obbligatorio.'
   if (!form.cognome?.trim()) errori.cognome = 'Il cognome è obbligatorio.'
+  if (!form.sesso) errori.sesso = 'Il sesso è obbligatorio.'
   const rivaPiva = validaPIva(form.partitaIva ?? '')
   if (!rivaPiva.valido) errori.partitaIva = rivaPiva.errore
   return errori
@@ -60,7 +64,7 @@ export function SetupPage() {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-gradient-to-br from-teal-50 via-white to-teal-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 flex items-center justify-center p-4">
+    <div className="h-full overflow-y-auto overscroll-contain bg-gradient-to-br from-teal-50 via-white to-teal-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-4">
@@ -105,14 +109,24 @@ export function SetupPage() {
               />
             </div>
 
-            <Input
-              label="Partita IVA"
-              required
-              placeholder="Es. 12345678901"
-              value={form.partitaIva}
-              onChange={(e) => handleChange('partitaIva', e.target.value)}
-              error={errori.partitaIva}
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <Select
+                label="Sesso"
+                required
+                options={GENDER_OPTIONS}
+                value={form.sesso ?? ''}
+                onChange={(e) => handleChange('sesso', e.target.value)}
+                error={errori.sesso}
+              />
+              <Input
+                label="Partita IVA"
+                required
+                placeholder="Es. 12345678901"
+                value={form.partitaIva}
+                onChange={(e) => handleChange('partitaIva', e.target.value)}
+                error={errori.partitaIva}
+              />
+            </div>
 
             <div className="pt-1">
               <Button

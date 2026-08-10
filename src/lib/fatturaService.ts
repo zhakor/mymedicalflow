@@ -7,7 +7,9 @@ import type {
   PaginatedInvoices,
 } from '../types/fattura'
 
-const KEY = 'fatture'
+export const STORAGE_KEY = 'fatture'
+
+const KEY = STORAGE_KEY
 
 // ─── Helpers interni ─────────────────────────────────────────────────────────
 

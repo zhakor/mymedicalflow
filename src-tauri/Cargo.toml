@@ -1,6 +1,6 @@
 [package]
 name = "mymedicalflow"
-version = "0.1.0"
+version = "0.3.0"
 description = "MyMedicalFlow - Gestionale medico desktop offline"
 authors = ["MyMedicalFlow"]
 edition = "2021"
@@ -17,8 +17,22 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2.11", features = [] }
-tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
+# La feature shellexecute-on-windows Ã¨ obbligatoria: senza, `open` ricade su
+# `cmd /c start`, che interpreta il percorso come riga di comando.
+open = { version = "5", features = ["shellexecute-on-windows"] }
+# Cifratura di archivio e copie: AES-256-GCM con la chiave di installazione.
+# Il file resta apribile su qualsiasi computer che disponga del codice di recupero.
+aes-gcm = "0.10"
+tauri-plugin-updater = "2.10.1"
+tauri-plugin-process = "2.3.1"
+
+# DPAPI per la cifratura dell'archivio locale (vedi src/secure_store.rs)
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security_Cryptography",
+] }

@@ -141,7 +141,7 @@ export function generateDocument(templateBase64: string, data: DocTemplateData):
  *   Se il comando Rust non è disponibile, fallback al blob URL.
  * - In browser: usa blob URL + <a download>.
  */
-const isTauri = (): boolean =>
+export const isTauri = (): boolean =>
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
 function blobDownload(base64Content: string, fileName: string): void {

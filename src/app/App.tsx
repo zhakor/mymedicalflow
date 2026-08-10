@@ -4,52 +4,103 @@ import { useImpostazioniStore } from '../stores/impostazioniStore'
 import { SplashScreen } from '../components/layout/SplashScreen'
 import { AppLayout } from '../components/layout/AppLayout'
 import { SetupPage } from '../pages/SetupPage'
+import { CopieSetupPage } from '../pages/CopieSetupPage'
 import { DashboardPage } from '../pages/DashboardPage'
 import { ProfiloPage } from '../pages/ProfiloPage'
 import { ImpostazioniPage } from '../pages/ImpostazioniPage'
 import { PazientiPage } from '../pages/PazientiPage'
 import { AppuntamentiPage } from '../pages/AppuntamentiPage'
 import { FatturePage } from '../pages/FatturePage'
+import { ErroreAvvio } from '../components/layout/ErroreAvvio'
+import { AggiornamentoModal } from '../features/updater/AggiornamentoModal'
+import { inizializzaStorage } from '../lib/storageService'
+import { leggiPreferenze } from '../lib/backupService'
+import { useAggiornamentoStore } from '../stores/aggiornamentoStore'
 import type { StatoAvvio } from '../types'
 import type { NavRoute } from '../components/layout/Sidebar'
 
+const DURATA_SPLASH_MS = 900
+
 export default function App() {
   const [stato, setStato] = useState<StatoAvvio>('loading')
+  const [erroreAvvio, setErroreAvvio] = useState<string | null>(null)
+  // Si assume configurato finché non si legge il contrario: un errore di
+  // lettura non deve riproporre la configurazione a chi l'ha già fatta.
+  const [copieConfigurate, setCopieConfigurate] = useState(true)
   const [activeRoute, setActiveRoute] = useState<NavRoute>('dashboard')
 
   const { caricaProfilo, isProfiloCompleto } = useProfiloStore()
-  const { caricaImpostazioni, impostazioni, applicaTema } = useImpostazioniStore()
+  const { caricaImpostazioni, applicaTema } = useImpostazioniStore()
+  const profilo = useProfiloStore((s) => s.profilo)
 
   useEffect(() => {
-    // Carica dati da localStorage
-    caricaImpostazioni()
-    caricaProfilo()
+    let annullato = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const inizio = Date.now()
 
-    // Applica il tema salvato immediatamente
-    const saved = impostazioni
-    applicaTema(saved.tema)
-
-    // Breve splash screen fluido (minimo 800ms per UX)
-    const timer = setTimeout(() => {
-      if (isProfiloCompleto()) {
-        setStato('ready')
-      } else {
-        setStato('setup')
+    async function avvia() {
+      try {
+        // L'archivio è cifrato: va aperto prima di leggere qualunque dato.
+        await inizializzaStorage()
+      } catch (err) {
+        if (!annullato) {
+          setErroreAvvio(err instanceof Error ? err.message : String(err))
+        }
+        return
       }
-    }, 900)
+      if (annullato) return
 
-    return () => clearTimeout(timer)
+      caricaImpostazioni()
+      caricaProfilo()
+
+      // Tema letto dopo il caricamento, non dal valore iniziale dello store
+      applicaTema(useImpostazioniStore.getState().impostazioni.tema)
+
+      const configurate = await leggiPreferenze()
+        .then((p) => p.copieConfigurate)
+        .catch(() => true)
+      if (annullato) return
+      setCopieConfigurate(configurate)
+
+      // Splash screen fluido, al netto del tempo già speso ad aprire l'archivio
+      const restante = Math.max(0, DURATA_SPLASH_MS - (Date.now() - inizio))
+      timer = setTimeout(() => {
+        if (annullato) return
+        if (!isProfiloCompleto()) setStato('setup')
+        else setStato(configurate ? 'ready' : 'copie')
+      }, restante)
+    }
+
+    void avvia()
+
+    return () => {
+      annullato = true
+      if (timer !== undefined) clearTimeout(timer)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Quando il profilo viene completato dalla SetupPage, passa a ready
-  const profilo = useProfiloStore((s) => s.profilo)
+  // Controllo aggiornamenti: parte solo ad app pronta e non blocca nulla.
+  // Se il PC è offline l'errore resta nello store e non viene mostrato.
+  const controllaAggiornamenti = useAggiornamentoStore((s) => s.controlla)
   useEffect(() => {
-    if (stato === 'setup' && isProfiloCompleto()) {
-      // Breve transizione dopo il salvataggio
-      setTimeout(() => setStato('ready'), 400)
-    }
-  }, [profilo, stato, isProfiloCompleto])
+    if (stato !== 'ready') return
+    void controllaAggiornamenti()
+  }, [stato, controllaAggiornamenti])
+
+  // Quando il profilo viene completato dalla SetupPage si prosegue con la
+  // configurazione delle copie, se non è ancora stata fatta.
+  useEffect(() => {
+    if (stato !== 'setup' || !isProfiloCompleto()) return
+    const timer = setTimeout(() => setStato(copieConfigurate ? 'ready' : 'copie'), 400)
+    return () => clearTimeout(timer)
+  }, [profilo, stato, isProfiloCompleto, copieConfigurate])
+
+  // Le uscite condizionali stanno dopo tutti gli hook: anticiparle
+  // cambierebbe il numero di hook eseguiti tra un render e l'altro.
+  if (erroreAvvio) {
+    return <ErroreAvvio messaggio={erroreAvvio} />
+  }
 
   if (stato === 'loading') {
     return <SplashScreen />
@@ -57,6 +108,10 @@ export default function App() {
 
   if (stato === 'setup') {
     return <SetupPage />
+  }
+
+  if (stato === 'copie') {
+    return <CopieSetupPage onCompletato={() => setStato('ready')} />
   }
 
   function renderPage() {
@@ -79,8 +134,11 @@ export default function App() {
   }
 
   return (
-    <AppLayout activeRoute={activeRoute} onNavigate={setActiveRoute}>
-      {renderPage()}
-    </AppLayout>
+    <>
+      <AppLayout activeRoute={activeRoute} onNavigate={setActiveRoute}>
+        {renderPage()}
+      </AppLayout>
+      <AggiornamentoModal />
+    </>
   )
 }

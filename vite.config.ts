@@ -16,6 +16,9 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    watch: {
+      ignored: ['**/src-tauri/**'],
+    },
   },
   // Evita che Vite oscuri gli errori in sviluppo Tauri
   clearScreen: false,

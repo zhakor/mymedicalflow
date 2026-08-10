@@ -1,7 +1,9 @@
 import { storageService } from './storageService'
 import type { ProfiloProfessionista } from '../types'
 
-const KEY = 'profilo'
+export const STORAGE_KEY = 'profilo'
+
+const KEY = STORAGE_KEY
 
 export const profiloService = {
   get(): ProfiloProfessionista | null {

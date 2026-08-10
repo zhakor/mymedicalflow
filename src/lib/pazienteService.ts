@@ -7,7 +7,9 @@ import type {
   PatientsQuery,
 } from '../types/paziente'
 
-const KEY = 'pazienti'
+export const STORAGE_KEY = 'pazienti'
+
+const KEY = STORAGE_KEY
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

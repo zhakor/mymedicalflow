@@ -7,6 +7,17 @@
     font-family: 'Inter', system-ui, sans-serif;
   }
 
+  /* Il documento non scorre mai: lo scorrimento appartiene ai contenitori
+     interni (il main delle pagine, o la schermata a tutto schermo di turno).
+     Senza questo vincolo un elemento troppo largo o troppo alto farebbe
+     scorrere l'intera pagina, trascinandosi dietro la barra laterale. */
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
   body {
     @apply bg-gray-100 text-gray-900 dark:bg-gray-950 dark:text-gray-100;
   }

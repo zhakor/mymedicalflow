@@ -208,7 +208,7 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
       amount: parseFloat(form.amount.replace(',', '.')) || 0,
       stampDuty: isElettronica ? 0 : stampDuty,
       stampDutyNumber: isElettronica ? undefined : (hasStampDuty ? form.stampDutyNumber.trim() || undefined : undefined),
-      status: isElettronica ? 'in_attesa' : (form.status as InvoiceStatus),
+      status: form.status as InvoiceStatus,
       issueDate: form.issueDate,
       generatedFile: pendingGeneratedFile ?? undefined,
     }
@@ -267,7 +267,7 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
       const data = buildTemplateData(invoiceForTemplate, patient)
       const base64Doc = generateDocument(templateBase64, data)
 
-      const fileName = `Fattura_${input.invoiceNumber.replace('/', '-')}_${input.patientLastName}.docx`
+      const fileName = `Fattura_${input.invoiceNumber.replace(/\//g, '-')}_${input.patientLastName}.docx`
 
       // Salva il file nello stato locale — verrà persistito al click su "Salva"
       setPendingGeneratedFile({
@@ -384,6 +384,14 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
                     value={form.issueDate}
                     onChange={(e) => set('issueDate', e.target.value)}
                     error={errors.issueDate}
+                  />
+                  <Select
+                    label="Stato"
+                    required
+                    options={INVOICE_STATUS_OPTIONS}
+                    value={form.status}
+                    onChange={(e) => set('status', e.target.value)}
+                    error={errors.status}
                   />
                   <Input
                     label="Importo (€)"

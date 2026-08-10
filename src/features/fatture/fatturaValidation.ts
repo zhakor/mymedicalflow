@@ -31,6 +31,8 @@ export function validateInvoice(
 
   if (!input.issueDate) errors.issueDate = 'La data di emissione è obbligatoria.'
 
+  if (!input.status) errors.status = 'Lo stato è obbligatorio.'
+
   if (input.amount === undefined || input.amount === null || isNaN(input.amount)) {
     errors.amount = "L'importo deve essere un numero valido."
   } else if (input.amount <= 0) {
@@ -51,7 +53,6 @@ export function validateInvoice(
       if (!r.valido) errors.patientFiscalCode = r.errore
     }
     if (!input.description?.trim()) errors.description = 'La descrizione è obbligatoria.'
-    if (!input.status) errors.status = 'Lo stato è obbligatorio.'
     // Bollo
     if (input.stampDuty && input.stampDuty > 0 && !input.stampDutyNumber?.trim()) {
       errors.stampDutyNumber = 'Il numero bollo è obbligatorio se il bollo è presente.'

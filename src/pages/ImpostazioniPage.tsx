@@ -1,16 +1,32 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { clsx } from 'clsx'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
+import { CopieCard } from '../features/backup/CopieCard'
+import { AggiornamentiCard } from '../features/updater/AggiornamentiCard'
 import { useImpostazioniStore } from '../stores/impostazioniStore'
 import type { ImpostazioniApp, TemplateFattura } from '../types'
 import { pickDirectory } from '../lib/documentService'
-import { Sun, Moon, Check, Upload, Trash2, Folder, X } from 'lucide-react'
+import { Sun, Moon, Check, Upload, Trash2, Folder, X, AlertTriangle } from 'lucide-react'
+
+interface Feedback {
+  testo: string
+  tipo: 'success' | 'error'
+}
 
 export function ImpostazioniPage() {
   const { impostazioni, salvaImpostazioni, applicaTema } = useImpostazioniStore()
   const [form, setForm] = useState<ImpostazioniApp>(impostazioni)
-  const [feedback, setFeedback] = useState(false)
+  const [feedback, setFeedback] = useState<Feedback | null>(null)
+  const timerFeedback = useRef<number | null>(null)
+
+  // Evita di aggiornare lo stato dopo lo smontaggio della pagina
+  useEffect(() => {
+    return () => {
+      if (timerFeedback.current !== null) window.clearTimeout(timerFeedback.current)
+    }
+  }, [])
 
   // Sincronizza il form se le impostazioni vengono aggiornate esternamente
   useEffect(() => {
@@ -76,9 +92,13 @@ export function ImpostazioniPage() {
     showFeedback()
   }
 
-  function showFeedback() {
-    setFeedback(true)
-    setTimeout(() => setFeedback(false), 3000)
+  function showFeedback(
+    testo = 'Impostazioni salvate.',
+    tipo: 'success' | 'error' = 'success',
+  ) {
+    setFeedback({ testo, tipo })
+    if (timerFeedback.current !== null) window.clearTimeout(timerFeedback.current)
+    timerFeedback.current = window.setTimeout(() => setFeedback(null), 5000)
   }
 
   function formatFileSize(bytes: number): string {
@@ -100,9 +120,20 @@ export function ImpostazioniPage() {
 
       {/* Feedback salvataggio */}
       {feedback && (
-        <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-xl px-4 py-3 flex items-center gap-2 text-teal-700 dark:text-teal-400 text-sm">
-          <Check size={16} />
-          Impostazioni salvate.
+        <div
+          className={clsx(
+            'border rounded-xl px-4 py-3 flex items-start gap-2 text-sm',
+            feedback.tipo === 'success'
+              ? 'bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-400'
+              : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400',
+          )}
+        >
+          {feedback.tipo === 'success' ? (
+            <Check size={16} className="flex-shrink-0 mt-0.5" />
+          ) : (
+            <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+          )}
+          <span className="min-w-0 break-words">{feedback.testo}</span>
         </div>
       )}
 
@@ -242,6 +273,12 @@ export function ImpostazioniPage() {
           </button>
         )}
       </Card>
+
+      {/* Backup e ripristino */}
+      <CopieCard onFeedback={showFeedback} />
+
+      {/* Aggiornamenti */}
+      <AggiornamentiCard />
 
       {/* Salva */}
       <div className="flex justify-end">

@@ -1,3 +1,5 @@
+import type { Gender } from "./paziente";
+
 // Professioni supportate
 export type Professione = string;
 
@@ -8,7 +10,17 @@ export interface ProfiloProfessionista {
   cognome: string;
   partitaIva: string;
   dataNascita: string; // ISO date string YYYY-MM-DD
+  /** Usato per concordare i messaggi rivolti al professionista.
+   *  Opzionale: i profili creati prima non lo contengono. */
+  sesso?: Gender;
   fotoProfilo?: string; // base64 data URL opzionale
+}
+
+/** Saluto concordato al genere; senza indicazione resta la forma doppia. */
+export function salutoPerSesso(sesso?: Gender): string {
+  if (sesso === "male") return "Benvenuto";
+  if (sesso === "female") return "Benvenuta";
+  return "Benvenuto/a";
 }
 
 // Valute supportate
@@ -31,4 +43,5 @@ export interface ImpostazioniApp {
 }
 
 // Stato di avvio dell'app
-export type StatoAvvio = "loading" | "setup" | "ready";
+// "copie": configurazione iniziale delle copie di sicurezza, dopo il profilo
+export type StatoAvvio = "loading" | "setup" | "copie" | "ready";

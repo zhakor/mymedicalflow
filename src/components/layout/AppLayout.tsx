@@ -14,7 +14,7 @@ export function AppLayout({ children, activeRoute, onNavigate }: AppLayoutProps)
   const [collapsed, setCollapsed] = useState(false)
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-100 dark:bg-gray-950">
+    <div className="flex h-full overflow-hidden bg-gray-100 dark:bg-gray-950">
       {/* Sidebar wrapper — anima la larghezza */}
       <div
         className={clsx(
@@ -35,8 +35,10 @@ export function AppLayout({ children, activeRoute, onNavigate }: AppLayoutProps)
         {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
       </button>
 
-      {/* Contenuto principale */}
-      <main className="flex-1 overflow-y-auto min-w-0">
+      {/* Contenuto principale — unico contenitore che scorre.
+          `overscroll-contain` impedisce che, arrivati a fine corsa, lo
+          scorrimento prosegua sugli antenati. */}
+      <main className="flex-1 min-w-0 h-full overflow-auto overscroll-contain">
         <div className="max-w-5xl mx-auto px-8 py-8">
           {children}
         </div>

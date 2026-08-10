@@ -4,7 +4,9 @@ import { useProfiloStore } from '../stores/profiloStore'
 import { pazienteService } from '../lib/pazienteService'
 import { fatturaService } from '../lib/fatturaService'
 import { appuntamentoService } from '../lib/appuntamentoService'
-import { Users, Calendar, FileText, Activity } from 'lucide-react'
+import { IndicatoreCopie } from '../features/backup/IndicatoreCopie'
+import { salutoPerSesso } from '../types'
+import { Users, Calendar, FileText } from 'lucide-react'
 import { iconaWhite, iconaBlue, logoBianco, logoBlu } from '../assets/logos'
 
 interface StatCardProps {
@@ -45,6 +47,7 @@ export function DashboardPage() {
   const nomeCompleto =
     profilo ? `${profilo.nome} ${profilo.cognome}` : 'Professionista'
   const professione = profilo?.professione ?? ''
+  const saluto = salutoPerSesso(profilo?.sesso)
 
   return (
     <div className="space-y-8">
@@ -55,7 +58,7 @@ export function DashboardPage() {
             Dashboard
           </p>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-            Benvenuto, {nomeCompleto} 👋
+            {saluto}, {nomeCompleto} 👋
           </h2>
           {professione && (
             <div className="mt-2">
@@ -64,9 +67,8 @@ export function DashboardPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-gray-400 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 px-3 py-2 rounded-xl">
-          <Activity size={14} className="text-teal-500" />
-          <span>App offline — tutti i dati sono locali</span>
+        <div className="flex flex-col items-end gap-2">
+          <IndicatoreCopie />
         </div>
       </div>
 

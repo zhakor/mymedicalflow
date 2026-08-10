@@ -29,6 +29,7 @@ open = { version = "5", features = ["shellexecute-on-windows"] }
 aes-gcm = "0.10"
 tauri-plugin-updater = "2.10.1"
 tauri-plugin-process = "2.3.1"
+log = "0.4.33"
 
 # DPAPI per la cifratura dell'archivio locale (vedi src/secure_store.rs)
 [target.'cfg(windows)'.dependencies]

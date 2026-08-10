@@ -6,6 +6,7 @@ use tauri::Manager;
 
 mod crypto;
 mod secure_store;
+mod sistema_ts;
 
 /// Normalizza un nome file proveniente dal frontend.
 ///
@@ -221,7 +222,9 @@ pub fn run() {
             preferenze_leggi,
             imposta_cartella_backup,
             segna_copie_configurate,
-            destinazioni_suggerite
+            destinazioni_suggerite,
+            sistema_ts::commands::sistema_ts_configurazione,
+            sistema_ts::commands::sistema_ts_trasmetti
         ])
         // Copia di sicurezza silenziosa alla chiusura della finestra.
         // Viene eseguita qui, e non nel frontend, per due motivi: avviene anche

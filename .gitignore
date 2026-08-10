@@ -44,3 +44,7 @@ Thumbs.db
 *.key
 *.key.pub
 .tauri/
+
+# Credenziali di test del Sistema TS: sono pubbliche, ma un file chiamato
+# "utenze" non deve stare in un repository pubblico.
+src-tauri/resources/sistema_ts/SoggettoAltriProfessionisti/UtenzeTestAltriProfessionisti.txt

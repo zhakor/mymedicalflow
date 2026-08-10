@@ -8,7 +8,12 @@ import { GENDER_LABELS, GENDER_OPTIONS } from '../types/paziente'
 import { useProfiloStore } from '../stores/profiloStore'
 import type { ProfiloProfessionista } from '../types'
 import { Pencil, Check, X } from 'lucide-react'
-import { validaPIva, validaDataNascita, validaSePresente } from '../lib/validazioni'
+import {
+  validaPIva,
+  validaDataNascita,
+  validaSePresente,
+  validaCodiceFiscale,
+} from '../lib/validazioni'
 
 interface Errori {
   professione?: string
@@ -16,6 +21,8 @@ interface Errori {
   cognome?: string
   sesso?: string
   partitaIva?: string
+  codiceFiscale?: string
+  dispositivo?: string
   dataNascita?: string
 }
 
@@ -27,6 +34,13 @@ function valida(form: Partial<ProfiloProfessionista>): Errori {
   if (!form.sesso) errori.sesso = 'Il sesso è obbligatorio.'
   const rivaPiva = validaPIva(form.partitaIva ?? '')
   if (!rivaPiva.valido) errori.partitaIva = rivaPiva.errore
+  const riCf = validaCodiceFiscale(form.codiceFiscale ?? '')
+  if (!riCf.valido) errori.codiceFiscale = riCf.errore
+  // Il Sistema TS ammette dispositivi da 1 a 999
+  const d = form.dispositivo
+  if (d === undefined || !Number.isInteger(d) || d < 1 || d > 999) {
+    errori.dispositivo = 'Indica un numero da 1 a 999.'
+  }
   const riDataNascita = validaSePresente(form.dataNascita, validaDataNascita)
   if (!riDataNascita.valido) errori.dataNascita = riDataNascita.errore
   return errori
@@ -48,7 +62,11 @@ export function ProfiloPage() {
   const [feedbackSalvataggio, setFeedbackSalvataggio] = useState(false)
 
   function handleChange(field: keyof ProfiloProfessionista, value: string) {
-    setForm((prev) => ({ ...prev, [field]: value }))
+    // `dispositivo` è numerico: senza conversione finirebbe nell'archivio come
+    // stringa e non supererebbe la validazione del Sistema TS.
+    const valore: string | number | undefined =
+      field === 'dispositivo' ? (value === '' ? undefined : Number(value)) : value
+    setForm((prev) => ({ ...prev, [field]: valore }))
     if (errori[field as keyof Errori]) {
       setErrori((prev) => ({ ...prev, [field]: undefined }))
     }
@@ -241,6 +259,29 @@ export function ProfiloPage() {
                 onChange={(e) => handleChange('dataNascita', e.target.value)}
                 error={errori.dataNascita}
               />
+
+              {/* Dati richiesti dal Sistema Tessera Sanitaria */}
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Codice fiscale"
+                  required
+                  placeholder="Es. RSSMRA80A01H501U"
+                  value={form.codiceFiscale ?? ''}
+                  onChange={(e) => handleChange('codiceFiscale', e.target.value.toUpperCase())}
+                  error={errori.codiceFiscale}
+                  className="uppercase"
+                />
+                <Input
+                  label="Dispositivo"
+                  type="number"
+                  min={1}
+                  max={999}
+                  value={form.dispositivo ?? 1}
+                  onChange={(e) => handleChange('dispositivo', e.target.value)}
+                  error={errori.dispositivo}
+                  hint="Richiesto dal Sistema TS. Lascia 1 se non ne usi più d'uno."
+                />
+              </div>
 
               <div className="flex gap-3 pt-2">
                 <Button onClick={handleSalva}>

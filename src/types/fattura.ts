@@ -1,3 +1,5 @@
+import type { DatiSistemaTs } from './sistemaTs'
+
 // ─── Stato e tipo fattura ─────────────────────────────────────────────────────
 
 export type InvoiceStatus = 'in_attesa' | 'pagata'
@@ -51,6 +53,13 @@ export interface Invoice {
   issueDate: string              // ISO date YYYY-MM-DD
   invoiceType: InvoiceType
   generatedFile?: GeneratedInvoiceFile
+  /**
+   * Dati richiesti dal Sistema Tessera Sanitaria.
+   * La presenza di questo oggetto significa "soggetta a trasmissione": non è
+   * un terzo tipo di fattura, che resta cartacea o elettronica.
+   * Lo stato della trasmissione vive a parte, in `TrasmissioneTs`.
+   */
+  sistemaTs?: DatiSistemaTs
   createdAt: string
   updatedAt: string
 }

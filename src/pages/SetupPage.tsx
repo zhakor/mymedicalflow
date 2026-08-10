@@ -8,7 +8,7 @@ import type { ProfiloProfessionista } from '../types'
 import { GENDER_OPTIONS } from '../types/paziente'
 import { iconaWhite } from '../assets/logos'
 import { LogIn } from 'lucide-react'
-import { validaPIva } from '../lib/validazioni'
+import { validaPIva, validaCodiceFiscale } from '../lib/validazioni'
 
 interface Errori {
   professione?: string
@@ -16,6 +16,7 @@ interface Errori {
   cognome?: string
   sesso?: string
   partitaIva?: string
+  codiceFiscale?: string
 }
 
 function valida(form: Partial<ProfiloProfessionista>): Errori {
@@ -26,6 +27,9 @@ function valida(form: Partial<ProfiloProfessionista>): Errori {
   if (!form.sesso) errori.sesso = 'Il sesso è obbligatorio.'
   const rivaPiva = validaPIva(form.partitaIva ?? '')
   if (!rivaPiva.valido) errori.partitaIva = rivaPiva.errore
+  // Serve al Sistema TS, che identifica con questo l'erogatore della prestazione
+  const riCf = validaCodiceFiscale(form.codiceFiscale ?? '')
+  if (!riCf.valido) errori.codiceFiscale = riCf.errore
   return errori
 }
 
@@ -37,6 +41,11 @@ export function SetupPage() {
     nome: '',
     cognome: '',
     partitaIva: '',
+    codiceFiscale: '',
+    // Il dispositivo di emissione richiesto dal Sistema TS vale 1 per un
+    // professionista singolo: si imposta qui e resta modificabile dal Profilo,
+    // per non chiedere all'avvio un dato tecnico che quasi nessuno cambia.
+    dispositivo: 1,
   })
   const [errori, setErrori] = useState<Errori>({})
   const [salvataggio, setSalvataggio] = useState(false)
@@ -127,6 +136,16 @@ export function SetupPage() {
                 error={errori.partitaIva}
               />
             </div>
+
+            <Input
+              label="Codice fiscale"
+              required
+              placeholder="Es. RSSMRA80A01H501U"
+              value={form.codiceFiscale ?? ''}
+              onChange={(e) => handleChange('codiceFiscale', e.target.value.toUpperCase())}
+              error={errori.codiceFiscale}
+              className="uppercase"
+            />
 
             <div className="pt-1">
               <Button

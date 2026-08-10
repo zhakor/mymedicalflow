@@ -9,6 +9,12 @@ export interface ProfiloProfessionista {
   nome: string;
   cognome: string;
   partitaIva: string;
+  /** Codice fiscale del professionista: il Sistema TS identifica con questo
+   *  l'erogatore della prestazione. Opzionale per i profili già esistenti. */
+  codiceFiscale?: string;
+  /** Numero del dispositivo di emissione (1–999) richiesto dal Sistema TS.
+   *  Per un professionista singolo vale 1. */
+  dispositivo?: number;
   dataNascita: string; // ISO date string YYYY-MM-DD
   /** Usato per concordare i messaggi rivolti al professionista.
    *  Opzionale: i profili creati prima non lo contengono. */

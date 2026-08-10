@@ -16,6 +16,9 @@ import { fatturaService } from '../../lib/fatturaService'
 import { pazienteService } from '../../lib/pazienteService'
 import { useImpostazioniStore } from '../../stores/impostazioniStore'
 import { PazienteOmonimoModal } from './PazienteOmonimoModal'
+import { SistemaTsSection } from './SistemaTsSection'
+import { sistemaTsService } from '../../lib/sistemaTsService'
+import type { DatiSistemaTs } from '../../types/sistemaTs'
 import type { Patient } from '../../types/paziente'
 
 // ─── Template ─────────────────────────────────────────────────────────────────
@@ -47,6 +50,8 @@ type FormState = {
   stampDutyNumber: string
   status: InvoiceStatus | ''
   issueDate: string
+  /** Assente quando la fattura non è soggetta a trasmissione al Sistema TS. */
+  sistemaTs?: DatiSistemaTs
 }
 
 const EMPTY_FORM: FormState = {
@@ -78,6 +83,7 @@ function invoiceToForm(inv: Invoice): FormState {
     stampDutyNumber: inv.stampDutyNumber ?? '',
     status: inv.status,
     issueDate: inv.issueDate,
+    sistemaTs: inv.sistemaTs,
   }
 }
 
@@ -210,6 +216,7 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
       stampDutyNumber: isElettronica ? undefined : (hasStampDuty ? form.stampDutyNumber.trim() || undefined : undefined),
       status: form.status as InvoiceStatus,
       issueDate: form.issueDate,
+      sistemaTs: form.sistemaTs,
       generatedFile: pendingGeneratedFile ?? undefined,
     }
   }
@@ -294,6 +301,10 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
   }
 
   const isElettronica = form.invoiceType === 'elettronica'
+
+  // Una fattura già accettata dal Sistema TS non si modifica da qui: servirebbe
+  // una variazione, altrimenti l'archivio locale divergerebbe da quello inviato.
+  const statoTs = invoice ? sistemaTsService.statoPerFattura(invoice) : 'non_previsto'
 
   function handlePdfUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -556,6 +567,17 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
                   </div>
                 </div>
               </>
+            )}
+
+            {/* Sistema Tessera Sanitaria — indipendente dal tipo di fattura */}
+            {form.invoiceType && (
+              <SistemaTsSection
+                dati={form.sistemaTs}
+                onChange={(dati) => setForm((prev) => ({ ...prev, sistemaTs: dati }))}
+                dataEmissione={form.issueDate}
+                numeroFattura={form.invoiceNumber}
+                bloccato={statoTs === 'inviata' || statoTs === 'variata'}
+              />
             )}
 
             {/* Avviso template mancante — solo per cartacea */}

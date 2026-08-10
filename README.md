@@ -10,12 +10,14 @@ Tutti i dati vengono salvati localmente sul tuo dispositivo. Nessuna connessione
 
 ## Download
 
-Scarica l'ultima versione dalla pagina [Releases](https://github.com/zhakor/mymedicalflow/releases):
+[![Ultima versione](https://img.shields.io/github/v/release/zhakor/mymedicalflow?label=ultima%20versione)](https://github.com/zhakor/mymedicalflow/releases/latest)
+
+Scarica sempre l'ultima versione dalla pagina **[Releases](https://github.com/zhakor/mymedicalflow/releases/latest)** (link e badge puntano automaticamente all'ultima release pubblicata, senza bisogno di aggiornare questo file):
 
 | File | Tipo | Piattaforma |
 |---|---|---|
-| `MyMedicalFlow_0.2.0_x64_en-US.msi` | Installer MSI | Windows 64-bit |
-| `MyMedicalFlow_0.2.0_x64-setup.exe` | Installer NSIS (.exe) | Windows 64-bit |
+| `MyMedicalFlow_<versione>_x64_en-US.msi` | Installer MSI | Windows 64-bit |
+| `MyMedicalFlow_<versione>_x64-setup.exe` | Installer NSIS (.exe) | Windows 64-bit |
 
 > Per costruire l'installer localmente vedi la sezione [Build installer](#build-installer).
 

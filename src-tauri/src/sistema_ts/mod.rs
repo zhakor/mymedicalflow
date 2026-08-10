@@ -15,6 +15,7 @@ pub mod errors;
 pub mod mapper;
 pub mod mock;
 pub mod models;
+pub mod xml;
 
 pub use config::{Ambiente, ConfigSistemaTs};
 pub use errors::ErroreSistemaTs;

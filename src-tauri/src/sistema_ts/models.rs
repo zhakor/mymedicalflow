@@ -27,10 +27,7 @@ impl Operazione {
         }
     }
 
-    /// Nome dell'elemento di richiesta nello schema.
-    /// Serve al compositore dell'XML, ancora da scrivere: il valore è già stato
-    /// ricavato dal WSDL e verificato dal test qui sotto.
-    #[allow(dead_code)]
+    /// Nome dell'elemento di richiesta nello schema, usato dal compositore XML.
     pub fn elemento_richiesta(&self) -> &'static str {
         match self {
             Operazione::Inserimento => "inserimentoDocumentoSpesaRequest",

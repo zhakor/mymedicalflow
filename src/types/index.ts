@@ -44,4 +44,4 @@ export interface ImpostazioniApp {
 
 // Stato di avvio dell'app
 // "copie": configurazione iniziale delle copie di sicurezza, dopo il profilo
-export type StatoAvvio = "loading" | "setup" | "copie" | "ready";
+export type StatoAvvio = "loading" | "recupero-chiave" | "setup" | "copie" | "ready";

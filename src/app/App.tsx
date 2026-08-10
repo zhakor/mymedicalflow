@@ -12,9 +12,11 @@ import { PazientiPage } from '../pages/PazientiPage'
 import { AppuntamentiPage } from '../pages/AppuntamentiPage'
 import { FatturePage } from '../pages/FatturePage'
 import { ErroreAvvio } from '../components/layout/ErroreAvvio'
+import { RecuperoChiave } from '../components/layout/RecuperoChiave'
 import { AggiornamentoModal } from '../features/updater/AggiornamentoModal'
 import { inizializzaStorage } from '../lib/storageService'
 import { leggiPreferenze } from '../lib/backupService'
+import { chiaveStato } from '../lib/chiaveService'
 import { useAggiornamentoStore } from '../stores/aggiornamentoStore'
 import type { StatoAvvio } from '../types'
 import type { NavRoute } from '../components/layout/Sidebar'
@@ -28,6 +30,8 @@ export default function App() {
   // lettura non deve riproporre la configurazione a chi l'ha già fatta.
   const [copieConfigurate, setCopieConfigurate] = useState(true)
   const [activeRoute, setActiveRoute] = useState<NavRoute>('dashboard')
+  // Incrementato dopo un recupero riuscito per far ripartire l'avvio da zero.
+  const [tentativo, setTentativo] = useState(0)
 
   const { caricaProfilo, isProfiloCompleto } = useProfiloStore()
   const { caricaImpostazioni, applicaTema } = useImpostazioniStore()
@@ -40,7 +44,16 @@ export default function App() {
 
     async function avvia() {
       try {
-        // L'archivio è cifrato: va aperto prima di leggere qualunque dato.
+        // La chiave locale va verificata prima di aprire l'archivio: se DPAPI
+        // non riesce a leggerla (altro account o PC) serve il codice di
+        // recupero, non un errore generico.
+        const statoChiave = await chiaveStato()
+        if (annullato) return
+        if (statoChiave.tipo === 'richiedeCodiceRecupero') {
+          setStato('recupero-chiave')
+          return
+        }
+
         await inizializzaStorage()
       } catch (err) {
         if (!annullato) {
@@ -78,7 +91,7 @@ export default function App() {
       if (timer !== undefined) clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [tentativo])
 
   // Controllo aggiornamenti: parte solo ad app pronta e non blocca nulla.
   // Se il PC è offline l'errore resta nello store e non viene mostrato.
@@ -104,6 +117,17 @@ export default function App() {
 
   if (stato === 'loading') {
     return <SplashScreen />
+  }
+
+  if (stato === 'recupero-chiave') {
+    return (
+      <RecuperoChiave
+        onRecuperato={() => {
+          setStato('loading')
+          setTentativo((t) => t + 1)
+        }}
+      />
+    )
   }
 
   if (stato === 'setup') {

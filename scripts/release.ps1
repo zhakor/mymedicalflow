@@ -54,6 +54,29 @@ function Sostituisci-Prima($testo, $modello, $sostituto) {
     return $rx.Replace($testo, $sostituto, 1)
 }
 
+<#
+Esegue un comando esterno giudicandolo dal codice di uscita.
+
+In Windows PowerShell 5.1 la scrittura su stderr di un eseguibile diventa un
+errore terminante quando $ErrorActionPreference vale 'Stop': npm e vite usano
+stderr anche per semplici avvisi, quindi un comando riuscito verrebbe scambiato
+per fallito. Qui la preferenza viene sospesa e conta solo $LASTEXITCODE.
+#>
+function Esegui($descrizione, [scriptblock]$comando, [switch]$Silenzioso) {
+    $precedente = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $uscita = & $comando 2>&1
+    } finally {
+        $ErrorActionPreference = $precedente
+    }
+    if ($LASTEXITCODE -ne 0) {
+        if (-not $Silenzioso) { $uscita | Select-Object -Last 25 | ForEach-Object { Write-Host "    $_" } }
+        Interrompi "$descrizione non riuscito."
+    }
+    Scrivi-Ok $descrizione
+}
+
 # ─── Posizionamento ───────────────────────────────────────────────────────────
 
 $radice = Split-Path -Parent $PSScriptRoot
@@ -120,9 +143,7 @@ Scrivi-Ok "Nuova versione: $Versione  (tag $tag)"
 Scrivi-Passo 'Allineamento versioni'
 
 # package.json + package-lock.json in un colpo solo, senza toccare git
-npm version $Versione --no-git-tag-version --allow-same-version | Out-Null
-if ($LASTEXITCODE -ne 0) { Interrompi 'npm version non riuscito.' }
-Scrivi-Ok 'package.json e package-lock.json'
+Esegui 'package.json e package-lock.json' { npm version $Versione --no-git-tag-version --allow-same-version }
 
 # Cargo.toml: solo la versione del pacchetto, non quelle delle dipendenze
 $testoCargo = Get-Content $fCargo -Raw
@@ -142,22 +163,11 @@ Scrivi-Ok 'src-tauri/tauri.conf.json'
 
 Scrivi-Passo 'Verifiche (prima del tag, così un errore non lascia tag pubblici)'
 
-npx tsc --noEmit
-if ($LASTEXITCODE -ne 0) { Interrompi 'Typecheck fallito.' }
-Scrivi-Ok 'Typecheck TypeScript'
-
-npm run build 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) { Interrompi 'Build del frontend fallita.' }
-Scrivi-Ok 'Build frontend'
-
-cargo test --manifest-path src-tauri/Cargo.toml --lib
-if ($LASTEXITCODE -ne 0) { Interrompi 'Test Rust falliti.' }
-Scrivi-Ok 'Test Rust'
-
+Esegui 'Typecheck TypeScript' { npx tsc --noEmit }
+Esegui 'Build frontend' { npm run build }
+Esegui 'Test Rust' { cargo test --manifest-path src-tauri/Cargo.toml --lib }
 # `npm ci` in pipeline rifiuta package.json e lockfile disallineati
-npm ci --dry-run 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) { Interrompi 'package.json e package-lock.json non sono coerenti.' }
-Scrivi-Ok 'Coerenza lockfile (npm ci)'
+Esegui 'Coerenza lockfile (npm ci)' { npm ci --dry-run }
 
 # ─── 5. Coerenza finale delle quattro versioni ────────────────────────────────
 
@@ -197,22 +207,15 @@ if (-not $SenzaConferma) {
 
 Scrivi-Passo 'Pubblicazione'
 
-git add package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json
-git commit -m "Versione $Versione" | Out-Null
-if ($LASTEXITCODE -ne 0) { Interrompi 'Commit non riuscito.' }
-Scrivi-Ok "Commit: Versione $Versione"
-
-git tag $tag
-if ($LASTEXITCODE -ne 0) { Interrompi 'Creazione del tag non riuscita.' }
-Scrivi-Ok "Tag $tag creato"
-
-git push
-if ($LASTEXITCODE -ne 0) { Interrompi "Push del branch non riuscito. Il tag $tag esiste solo in locale." }
-Scrivi-Ok 'Branch inviato'
-
-git push origin $tag
-if ($LASTEXITCODE -ne 0) { Interrompi "Push del tag non riuscito. Riprova con: git push origin $tag" }
-Scrivi-Ok "Tag inviato — la pipeline è partita"
+Esegui "Commit: Versione $Versione" {
+    git add package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json
+    git commit -m "Versione $Versione"
+}
+Esegui "Tag $tag creato" { git tag $tag }
+# Il branch va inviato prima del tag: altrimenti il tag punterebbe a un commit
+# che il remote non conosce e la pipeline non troverebbe il codice.
+Esegui 'Branch inviato' { git push }
+Esegui "Tag inviato — la pipeline è partita" { git push origin $tag }
 
 # ─── 8. Cosa fare adesso ──────────────────────────────────────────────────────
 

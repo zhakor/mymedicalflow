@@ -32,9 +32,11 @@ Thumbs.db
 *.swp
 *.swo
 
+
 # Agenti Copilot/Claude
 .claude/
 .github/copilot/
+.github/agents/
 
 # Chiavi di firma degli aggiornamenti.
 # La private key non deve MAI entrare nel repository: vive in ~/.tauri

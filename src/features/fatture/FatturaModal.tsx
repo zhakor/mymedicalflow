@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
@@ -17,6 +17,7 @@ import { pazienteService } from '../../lib/pazienteService'
 import { useImpostazioniStore } from '../../stores/impostazioniStore'
 import { PazienteOmonimoModal } from './PazienteOmonimoModal'
 import { SistemaTsSection } from './SistemaTsSection'
+import { StatoSistemaTsBox } from './StatoSistemaTsBox'
 import { sistemaTsService } from '../../lib/sistemaTsService'
 import type { DatiSistemaTs } from '../../types/sistemaTs'
 import type { Patient } from '../../types/paziente'
@@ -110,6 +111,8 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
     },
   )
   const [errors, setErrors] = useState<InvoiceFormErrors>({})
+  // Cambia dopo ogni trasmissione, per rileggere lo stato dall'archivio
+  const [versioneTs, setVersioneTs] = useState(0)
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
@@ -304,7 +307,11 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
 
   // Una fattura già accettata dal Sistema TS non si modifica da qui: servirebbe
   // una variazione, altrimenti l'archivio locale divergerebbe da quello inviato.
-  const statoTs = invoice ? sistemaTsService.statoPerFattura(invoice) : 'non_previsto'
+  // Lo stato vive nell'archivio: `versioneTs` lo fa rileggere dopo un invio.
+  const statoTs = useMemo(
+    () => (invoice ? sistemaTsService.statoPerFattura(invoice) : 'non_previsto'),
+    [invoice, versioneTs],
+  )
 
   function handlePdfUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -577,6 +584,15 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
                 dataEmissione={form.issueDate}
                 numeroFattura={form.invoiceNumber}
                 bloccato={statoTs === 'inviata' || statoTs === 'variata'}
+              />
+            )}
+
+            {/* Stato e invio: solo su una fattura già salvata, perché la
+                trasmissione ha bisogno di dati stabili e di un identificativo. */}
+            {invoice && form.sistemaTs && (
+              <StatoSistemaTsBox
+                invoice={invoice}
+                onAggiornato={() => setVersioneTs((v) => v + 1)}
               />
             )}
 

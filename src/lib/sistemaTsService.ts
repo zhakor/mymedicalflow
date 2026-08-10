@@ -9,6 +9,7 @@
 
 import { storageService } from './storageService'
 import { profiloService } from './profiloService'
+import { isTauri } from './documentService'
 import type { Invoice } from '../types/fattura'
 import type { ProfiloProfessionista } from '../types'
 import {
@@ -185,4 +186,145 @@ export const sistemaTsService = {
     // Valore reale letto dal backend; qui solo il ripiego prudente
     return 'mock'
   },
+}
+
+// ─── Trasmissione ─────────────────────────────────────────────────────────────
+
+/** Esito restituito dal backend, già tradotto in termini applicativi. */
+export interface EsitoTrasmissione {
+  accettata: boolean
+  protocollo: string | null
+  ambiente: string
+  codice: string | null
+  descrizione: string | null
+}
+
+/** Errore strutturato proveniente dal modulo Rust. */
+export interface ErroreTrasmissione {
+  genere: string
+  messaggio: string
+  mancanti?: string[]
+  codice?: string
+  esitoIncerto?: boolean
+}
+
+function normalizzaErrore(err: unknown): ErroreTrasmissione {
+  if (err && typeof err === 'object' && 'genere' in err) {
+    return err as ErroreTrasmissione
+  }
+  return {
+    genere: 'sconosciuto',
+    messaggio: err instanceof Error ? err.message : String(err),
+  }
+}
+
+/** Ambiente configurato nel backend, mostrato nell'interfaccia. */
+export async function configurazioneSistemaTs(): Promise<{ ambiente: AmbienteTs }> {
+  if (!isTauri()) return { ambiente: 'mock' }
+  const { invoke } = await import('@tauri-apps/api/core')
+  return invoke('sistema_ts_configurazione')
+}
+
+/**
+ * Costruisce i dati applicativi da mandare al backend.
+ * Il frontend non conosce il tracciato: manda i valori della fattura e del
+ * profilo, la conversione avviene in Rust.
+ */
+export function datiPerTrasmissione(
+  invoice: Invoice,
+  profilo: ProfiloProfessionista | null = profiloService.get(),
+): Record<string, unknown> {
+  const ts = invoice.sistemaTs
+  return {
+    partitaIva: profilo?.partitaIva ?? '',
+    dispositivo: profilo?.dispositivo ?? 1,
+    numeroFattura: invoice.invoiceNumber,
+    dataEmissione: invoice.issueDate,
+    importo: invoice.amount,
+    dataPagamento: ts?.dataPagamento ?? invoice.issueDate,
+    pagamentoTracciato: ts?.pagamentoTracciato ?? 'SI',
+    opposizione: ts?.opposizione ?? false,
+    tipoSpesa: ts?.tipoSpesa ?? 'SP',
+    aliquotaIva: ts?.aliquotaIva,
+    naturaIva: ts?.naturaIva,
+    pagamentoAnticipato: ts?.pagamentoAnticipato ?? false,
+    codiceFiscaleAssistito: invoice.patientFiscalCode || undefined,
+  }
+}
+
+/**
+ * Trasmette la fattura e registra l'esito nello storico.
+ *
+ * La validazione locale gira prima: una richiesta già incompleta non deve
+ * raggiungere la rete. Solleva `ErroreTrasmissione` in caso di problema.
+ */
+export async function trasmetti(
+  invoice: Invoice,
+  operazione: OperazioneTs = 'inserimento',
+  esitoMock?: string,
+): Promise<EsitoTrasmissione> {
+  const validazione = validaPerTrasmissione(invoice)
+  if (!validazione.valido) {
+    throw {
+      genere: 'validazione',
+      messaggio: 'Impossibile trasmettere la fattura.',
+      mancanti: validazione.mancanti,
+    } as ErroreTrasmissione
+  }
+
+  const { invoke } = await import('@tauri-apps/api/core')
+  const istante = new Date().toISOString()
+
+  try {
+    const esito = await invoke<EsitoTrasmissione>('sistema_ts_trasmetti', {
+      operazione,
+      dati: datiPerTrasmissione(invoice),
+      esitoMock: esitoMock ?? null,
+    })
+
+    const ambiente = (esito.ambiente?.toLowerCase() ?? 'mock') as AmbienteTs
+    sistemaTsService.registraTentativo(
+      invoice.id,
+      {
+        operazione,
+        ambiente,
+        istante,
+        riuscito: esito.accettata,
+        protocollo: esito.protocollo ?? undefined,
+        codice: esito.codice ?? undefined,
+        descrizione: esito.descrizione ?? undefined,
+      },
+      esito.accettata ? statoDopo(operazione) : 'errore',
+    )
+    return esito
+  } catch (err) {
+    const errore = normalizzaErrore(err)
+    // Anche il fallimento entra nello storico: serve a ricostruire cosa è
+    // successo, soprattutto quando l'esito resta incerto.
+    sistemaTsService.registraTentativo(
+      invoice.id,
+      {
+        operazione,
+        ambiente: 'mock',
+        istante,
+        riuscito: false,
+        codice: errore.codice,
+        descrizione: errore.messaggio,
+      },
+      'errore',
+    )
+    throw errore
+  }
+}
+
+function statoDopo(operazione: OperazioneTs): StatoSistemaTS {
+  switch (operazione) {
+    case 'inserimento':
+    case 'rimborso':
+      return 'inviata'
+    case 'variazione':
+      return 'variata'
+    case 'cancellazione':
+      return 'cancellata'
+  }
 }

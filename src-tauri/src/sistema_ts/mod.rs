@@ -10,6 +10,7 @@
 
 pub mod commands;
 pub mod config;
+pub mod crypto;
 pub mod errors;
 pub mod mapper;
 pub mod mock;

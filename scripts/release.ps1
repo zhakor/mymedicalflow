@@ -173,11 +173,19 @@ Esegui 'Coerenza lockfile (npm ci)' { npm ci --dry-run }
 
 Scrivi-Passo 'Coerenza delle versioni'
 
+# package-lock.json non passa da ConvertFrom-Json: contiene una chiave con nome
+# vuoto ("packages": { "": ... }) che PowerShell 5.1 rifiuta. Si legge la prima
+# occorrenza di "version", che è quella del progetto.
+$primoVersion = {
+    param($percorso)
+    [regex]::Match((Get-Content $percorso -Raw), '"version"\s*:\s*"([^"]+)"').Groups[1].Value
+}
+
 $trovate = [ordered]@{
-    'package.json'           = (Get-Content $fPackage -Raw | ConvertFrom-Json).version
-    'package-lock.json'      = (Get-Content (Join-Path $radice 'package-lock.json') -Raw | ConvertFrom-Json).version
-    'src-tauri/Cargo.toml'   = ([regex]::Match((Get-Content $fCargo -Raw), '(?m)^version\s*=\s*"([^"]+)"').Groups[1].Value)
-    'src-tauri/tauri.conf.json' = ([regex]::Match((Get-Content $fTauri -Raw), '"version"\s*:\s*"([^"]+)"').Groups[1].Value)
+    'package.json'              = & $primoVersion $fPackage
+    'package-lock.json'         = & $primoVersion (Join-Path $radice 'package-lock.json')
+    'src-tauri/Cargo.toml'      = ([regex]::Match((Get-Content $fCargo -Raw), '(?m)^version\s*=\s*"([^"]+)"').Groups[1].Value)
+    'src-tauri/tauri.conf.json' = & $primoVersion $fTauri
 }
 $trovate.GetEnumerator() | ForEach-Object { Write-Host ("  {0,-28} {1}" -f $_.Key, $_.Value) }
 

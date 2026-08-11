@@ -20,7 +20,6 @@
         "resizable": true,
         "fullscreen": false,
         "center": true,
-        "_commento_dragDrop": "Spento perché con il valore predefinito la webview intercetta il trascinamento a livello nativo e gli eventi HTML5 non raggiungono la pagina: l'agenda non permetterebbe di spostare un appuntamento col mouse. L'app non riceve file trascinati dal sistema, quindi non si perde nulla.",
         "dragDropEnabled": false
       }
     ],

@@ -7,6 +7,14 @@
  *
  * Il tipo MIME è specifico dell'app: così un file trascinato dal desktop,
  * o del testo da un'altra finestra, non viene scambiato per un appuntamento.
+ *
+ * DIPENDENZA DALLA CONFIGURAZIONE: perché tutto questo funzioni nell'app
+ * installata serve `"dragDropEnabled": false` fra le opzioni della finestra
+ * in `src-tauri/tauri.conf.json`. Senza — ed è il valore predefinito — la
+ * webview intercetta il trascinamento a livello nativo per gestire i file
+ * trascinati dal sistema, e nessun evento arriva alla pagina: il codice qui
+ * sotto resta corretto e non viene mai eseguito. Il sintomo è che in
+ * sviluppo nel browser funziona e nell'app no.
  */
 
 export const TIPO_TRASCINAMENTO = 'application/x-mymedicalflow-appuntamento'

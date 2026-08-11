@@ -16,7 +16,7 @@ import {
   hasAppointmentErrors,
 } from './appuntamentoValidation'
 import type { AppointmentFormErrors } from './appuntamentoValidation'
-import { Calendar, CircleCheck, CircleAlert, TriangleAlert, X } from 'lucide-react'
+import { Calendar, CircleAlert, TriangleAlert, X } from 'lucide-react'
 
 // ─── Stato form ───────────────────────────────────────────────────────────────
 
@@ -59,11 +59,12 @@ function appointmentToForm(a: Appointment): FormState {
 // ─── Stato dello slot ─────────────────────────────────────────────────────────
 
 /**
- * Dice se l'orario scelto è libero, occupato o vicino a un altro appuntamento.
+ * Segnala solo i casi che meritano attenzione: l'orario identico, che
+ * impedisce il salvataggio, e la sovrapposizione con un altro appuntamento,
+ * che avvisa soltanto — la seconda seduta può cominciare in ritardo, o due
+ * prestazioni possono convivere.
  *
- * I tre casi hanno peso diverso: l'orario identico impedisce il salvataggio,
- * la vicinanza è solo un avviso — la durata delle sedute non è un dato salvato,
- * quindi la sovrapposizione è una stima e non può bloccare una scelta.
+ * Quando l'orario è libero non compare nulla: è il caso normale.
  */
 function StatoSlot({ slot }: { slot: EsitoSlot }) {
   if (slot.identico) {
@@ -95,12 +96,9 @@ function StatoSlot({ slot }: { slot: EsitoSlot }) {
     )
   }
 
-  return (
-    <div className="flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 dark:border-teal-900 dark:bg-teal-900/20">
-      <CircleCheck size={15} className="flex-shrink-0 text-teal-500" />
-      <p className="text-xs font-medium text-teal-700 dark:text-teal-400">Orario libero</p>
-    </div>
-  )
+  // Nessun riquadro quando l'orario è libero: è il caso normale, e confermarlo
+  // ogni volta aggiunge rumore senza aggiungere informazione.
+  return null
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────

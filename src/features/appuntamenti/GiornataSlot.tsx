@@ -10,7 +10,12 @@ import {
   slotDelGiorno,
 } from '../../lib/agendaService'
 import { servizioService } from '../../lib/servizioService'
-import { accettaRilascio, idTrascinato, iniziaTrascinamento } from './trascinamento'
+import {
+  accettaRilascio,
+  fineTrascinamento,
+  idTrascinato,
+  iniziaTrascinamento,
+} from './trascinamento'
 import type { Appointment, StatoPresenza } from '../../types/appuntamento'
 import { STATO_PRESENZA_DEFAULT } from '../../types/appuntamento'
 
@@ -49,7 +54,10 @@ function RigaAppuntamento({
         iniziaTrascinamento(e, appuntamento.id)
         setInMovimento(true)
       }}
-      onDragEnd={() => setInMovimento(false)}
+      onDragEnd={() => {
+        fineTrascinamento()
+        setInMovimento(false)
+      }}
       title="Trascina per spostare l'orario"
       className={clsx(
         'group flex cursor-grab items-start gap-3 rounded-xl border px-3 py-2.5 transition-all active:cursor-grabbing',

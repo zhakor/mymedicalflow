@@ -22,6 +22,8 @@ import { appuntamentoService } from '../../lib/appuntamentoService'
 import { downloadDocx } from '../../lib/documentService'
 import { INVOICE_STATUS_LABELS, INVOICE_TYPE_LABELS } from '../../types/fattura'
 import { servizioService } from '../../lib/servizioService'
+import { meseDi, riepilogoMensile } from '../../lib/presenzaService'
+import { oggi } from '../../lib/agendaService'
 import type { Invoice } from '../../types/fattura'
 
 interface CartellaPazienteProps {
@@ -73,6 +75,18 @@ export function CartellaPaziente({ patient, onBack }: CartellaPazienteProps) {
   const appuntamenti = useMemo(
     () => appuntamentoService.getByPatientId(patient.id),
     [patient.id],
+  )
+
+  /**
+   * Sedute svolte nel mese in corso, dal primo all'ultimo giorno.
+   *
+   * L'elenco sotto resta completo, ma il numero in evidenza risponde alla
+   * domanda che ci si fa davvero aprendo una cartella: quante sedute ha fatto
+   * questo mese. Il totale storico cresce all'infinito e non dice nulla.
+   */
+  const svolteQuestoMese = useMemo(
+    () => riepilogoMensile(patient.id, meseDi(oggi()), appuntamenti).presenti,
+    [patient.id, appuntamenti],
   )
 
   const [viewError, setViewError] = useState<string | null>(null)
@@ -261,8 +275,8 @@ export function CartellaPaziente({ patient, onBack }: CartellaPazienteProps) {
             <Calendar size={17} className="text-teal-600" />
             Appuntamenti associati
           </h3>
-          <Badge variant={appuntamenti.length > 0 ? 'info' : 'muted'}>
-            {appuntamenti.length} appuntament{appuntamenti.length === 1 ? 'o' : 'i'}
+          <Badge variant={svolteQuestoMese > 0 ? 'info' : 'muted'}>
+            {svolteQuestoMese} svolt{svolteQuestoMese === 1 ? 'a' : 'e'} questo mese
           </Badge>
         </div>
 

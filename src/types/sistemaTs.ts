@@ -132,12 +132,23 @@ export const AMBIENTE_TS_LABELS: Record<AmbienteTs, string> = {
 }
 
 /**
- * Vero quando un invio produce effetti fiscali veri. Serve a decidere quanto
- * essere rumorosi nell'interfaccia: sotto tutti gli altri ambienti si può
- * sbagliare senza conseguenze.
+ * Vero quando un invio produce effetti fiscali veri.
+ *
+ * L'interfaccia segnala gli altri ambienti, non questo: per chi usa l'app la
+ * produzione è la normalità, e un avviso a ogni invio di routine sarebbe
+ * rumore che insegna a ignorare gli avvisi. L'informazione utile è l'anomalia,
+ * cioè quando si sta lavorando su un ambiente che non trasmette davvero.
  */
 export function ambienteReale(ambiente: AmbienteTs): boolean {
   return ambiente === 'produzione'
+}
+
+/** Cosa comporta davvero l'ambiente, per chi sta provando. */
+export const AMBIENTE_TS_NOTE: Record<AmbienteTs, string> = {
+  mock: 'Nessuna richiesta lascia il computer: le risposte sono simulate.',
+  locale: 'La richiesta resta sul computer e non raggiunge il ministero.',
+  test: 'La richiesta raggiunge il collaudo ministeriale, senza alcun effetto fiscale.',
+  produzione: '',
 }
 
 /** Classificazione del campo `tipo` restituito dal Sistema TS per un messaggio. */

@@ -4,7 +4,7 @@ import { SistemaTsSection } from './SistemaTsSection'
 import { StatoSistemaTsBox } from './StatoSistemaTsBox'
 import { fatturaService } from '../../lib/fatturaService'
 import { configurazioneSistemaTs, sistemaTsService } from '../../lib/sistemaTsService'
-import { AMBIENTE_TS_LABELS, ambienteReale } from '../../types/sistemaTs'
+import { AMBIENTE_TS_LABELS, AMBIENTE_TS_NOTE, ambienteReale } from '../../types/sistemaTs'
 import type { AmbienteTs, DatiSistemaTs } from '../../types/sistemaTs'
 import type { Invoice } from '../../types/fattura'
 import { AlertTriangle, Check, ShieldAlert, X } from 'lucide-react'
@@ -126,41 +126,19 @@ export function SistemaTsModal({ invoice, onClose, onAggiornato }: SistemaTsModa
         </div>
 
         <div className="p-6 space-y-5">
-          {/* Ambiente di destinazione. In produzione è un avviso, non un'etichetta */}
-          {ambiente && (
-            <div
-              className={
-                ambienteReale(ambiente)
-                  ? 'flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-800 rounded-xl'
-                  : 'flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl'
-              }
-            >
-              <ShieldAlert
-                size={16}
-                className={
-                  ambienteReale(ambiente)
-                    ? 'text-red-500 flex-shrink-0 mt-0.5'
-                    : 'text-gray-400 flex-shrink-0 mt-0.5'
-                }
-              />
+          {/* Solo fuori dalla produzione: là l'invio reale è ciò che ci si
+              aspetta, e ripeterlo a ogni fattura sarebbe rumore. Qui invece
+              serve sapere che quel che si trasmette non conta davvero. */}
+          {ambiente && !ambienteReale(ambiente) && (
+            <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+              <ShieldAlert size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
               <div className="min-w-0 text-xs">
-                <p
-                  className={
-                    ambienteReale(ambiente)
-                      ? 'font-semibold text-red-700 dark:text-red-400'
-                      : 'font-medium text-gray-600 dark:text-gray-300'
-                  }
-                >
-                  Destinazione: {AMBIENTE_TS_LABELS[ambiente]}
+                <p className="font-semibold text-amber-800 dark:text-amber-300">
+                  Ambiente di prova: {AMBIENTE_TS_LABELS[ambiente]}
                 </p>
-                {ambienteReale(ambiente) && (
-                  <p className="text-red-700 dark:text-red-400 mt-0.5">
-                    Quanto trasmetti risulta nella posizione fiscale del professionista.
-                    {!dati?.opposizione && fattura.patientFiscalCode && (
-                      <> La spesa entra nella dichiarazione precompilata dell'assistito.</>
-                    )}
-                  </p>
-                )}
+                <p className="text-amber-700 dark:text-amber-400 mt-0.5">
+                  {AMBIENTE_TS_NOTE[ambiente]}
+                </p>
               </div>
             </div>
           )}

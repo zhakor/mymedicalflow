@@ -1,9 +1,10 @@
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
+import { MenuAzioniFattura } from './MenuAzioniFattura'
 import type { Invoice, PaginatedInvoices } from '../../types/fattura'
 import { INVOICE_STATUS_LABELS, INVOICE_TYPE_LABELS } from '../../types/fattura'
-import { FileText, Pencil, Trash2, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
+import { FileText, ChevronLeft, ChevronRight } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const PAGE_SIZE_OPTIONS = [5, 10, 25, 50]
@@ -13,6 +14,7 @@ interface FattureTableProps {
   hasActiveFilters: boolean
   onEdit: (invoice: Invoice) => void
   onView: (invoice: Invoice) => void
+  onSistemaTs: (invoice: Invoice) => void
   onDelete: (invoice: Invoice) => void
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
@@ -32,6 +34,7 @@ export function FattureTable({
   hasActiveFilters,
   onEdit,
   onView,
+  onSistemaTs,
   onDelete,
   onPageChange,
   onPageSizeChange,
@@ -142,38 +145,14 @@ export function FattureTable({
                   </Badge>
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap sticky right-0 z-10 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onView(inv)}
-                      disabled={!inv.generatedFile}
-                      title={inv.generatedFile ? 'Apri fattura generata' : 'Fattura non ancora generata'}
-                      className={clsx(
-                        inv.generatedFile
-                          ? 'text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20'
-                          : 'text-gray-300 dark:text-gray-600',
-                      )}
-                    >
-                      <Eye size={15} />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onEdit(inv)}
-                      title="Modifica"
-                    >
-                      <Pencil size={15} />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onDelete(inv)}
-                      title="Elimina"
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                    >
-                      <Trash2 size={15} />
-                    </Button>
+                  <div className="flex items-center justify-center">
+                    <MenuAzioniFattura
+                      invoice={inv}
+                      onView={onView}
+                      onEdit={onEdit}
+                      onSistemaTs={onSistemaTs}
+                      onDelete={onDelete}
+                    />
                   </div>
                 </td>
               </tr>

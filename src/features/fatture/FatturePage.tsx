@@ -5,6 +5,7 @@ import { useImpostazioniStore } from '../../stores/impostazioniStore'
 import { FattureFilters } from './FattureFilters'
 import { FattureTable } from './FattureTable'
 import { FatturaModal } from './FatturaModal'
+import { SistemaTsModal } from './SistemaTsModal'
 import { DeleteInvoiceConfirm } from './DeleteInvoiceConfirm'
 import type { Invoice, InvoiceFilters } from '../../types/fattura'
 import { downloadDocx } from '../../lib/documentService'
@@ -32,6 +33,7 @@ export function FatturePage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null)
   const [deletingInvoice, setDeletingInvoice] = useState<Invoice | null>(null)
+  const [sistemaTsInvoice, setSistemaTsInvoice] = useState<Invoice | null>(null)
 
   useEffect(() => {
     loadInvoices()
@@ -73,6 +75,10 @@ export function FatturePage() {
       const msg = e instanceof Error ? e.message : String(e)
       showFeedback(msg, 'error')
     }
+  }
+
+  function handleSistemaTs(invoice: Invoice) {
+    setSistemaTsInvoice(invoice)
   }
 
   function handleDeleteRequest(invoice: Invoice) {
@@ -143,6 +149,7 @@ export function FatturePage() {
         hasActiveFilters={hasActiveFilters()}
         onEdit={handleEdit}
         onView={handleView}
+        onSistemaTs={handleSistemaTs}
         onDelete={handleDeleteRequest}
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
@@ -155,6 +162,15 @@ export function FatturePage() {
           templateBase64={templateBase64}
           onClose={handleModalClose}
           onSaved={handleSaved}
+        />
+      )}
+
+      {/* Trasmissione al Sistema TS di una fattura già emessa */}
+      {sistemaTsInvoice && (
+        <SistemaTsModal
+          invoice={sistemaTsInvoice}
+          onClose={() => setSistemaTsInvoice(null)}
+          onAggiornato={loadInvoices}
         />
       )}
 

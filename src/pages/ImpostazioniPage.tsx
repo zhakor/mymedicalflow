@@ -3,6 +3,7 @@ import { clsx } from 'clsx'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
+import { ServiziCard } from '../features/impostazioni/ServiziCard'
 import { CopieCard } from '../features/backup/CopieCard'
 import { AggiornamentiCard } from '../features/updater/AggiornamentiCard'
 import { useImpostazioniStore } from '../stores/impostazioniStore'
@@ -275,6 +276,9 @@ export function ImpostazioniPage() {
       </Card>
 
       {/* Backup e ripristino */}
+      {/* Servizi del professionista */}
+      <ServiziCard onFeedback={showFeedback} />
+
       <CopieCard onFeedback={showFeedback} />
 
       {/* Aggiornamenti */}

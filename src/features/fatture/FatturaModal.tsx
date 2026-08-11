@@ -585,9 +585,6 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
             )}
 
             {/* Avviso template mancante — solo per cartacea */}
-            <div className="flex items-center mt-3">
-              <span className="text-sm">Stato file fattura</span>
-            </div>
             {!isElettronica && !canGenerate && (
               <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
                 <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />

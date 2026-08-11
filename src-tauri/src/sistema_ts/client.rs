@@ -416,11 +416,23 @@ mod tests {
     #[test]
     #[ignore = "contatta il collaudo ministeriale: eseguire a mano con --ignored"]
     fn invio_reale_al_collaudo() {
-        let credenziali = Credenziali {
-            utente: da_ambiente("STS_UTENTE"),
-            password: da_ambiente("STS_PASSWORD"),
-            pincode: da_ambiente("STS_PINCODE"),
-            cf_proprietario: da_ambiente("STS_CF_PROPRIETARIO"),
+        // Il codice fiscale del professionista non e' un segreto e identifica
+        // sia l'utenza sia il proprietario del documento.
+        let cf = da_ambiente("STS_CF_PROPRIETARIO");
+
+        // Parola chiave e pincode arrivano dal portachiavi, esattamente come in
+        // esercizio: cosi' la prova percorre la stessa strada dell'app e nessun
+        // segreto passa dalla riga di comando. Con `STS_PASSWORD` si forzano
+        // invece le utenze del kit.
+        let credenziali = match std::env::var("STS_PASSWORD").ok().filter(|p| !p.is_empty()) {
+            Some(password) => Credenziali {
+                utente: da_ambiente("STS_UTENTE"),
+                password,
+                pincode: da_ambiente("STS_PINCODE"),
+                cf_proprietario: cf,
+            },
+            None => crate::sistema_ts::credenziali::per_invio(&cf)
+                .expect("credenziali assenti nel portachiavi: salvale dal profilo dell'app"),
         };
 
         // Numero diverso a ogni esecuzione: due invii con lo stesso
@@ -433,7 +445,14 @@ mod tests {
 
         let mut documento = documento();
         documento.id_spesa.p_iva = da_ambiente("STS_PIVA");
-        documento.id_spesa.num_documento = format!("T{progressivo}");
+
+        // Dopo un esito incerto (timeout) si rimanda **lo stesso** numero: se il
+        // documento era stato registrato il Sistema TS lo respinge come
+        // duplicato, e cosi' si scopre com'e' andata senza inserirlo due volte.
+        documento.id_spesa.num_documento = std::env::var("STS_NUM_DOCUMENTO")
+            .ok()
+            .filter(|n| !n.trim().is_empty())
+            .unwrap_or_else(|| format!("T{progressivo}"));
 
         // Con `STS_CF_ASSISTITO` si prova la variante con codice fiscale e
         // opposizione a 0; senza, si trasmette in opposizione e nessun dato
@@ -460,7 +479,12 @@ mod tests {
             if documento.cf_cittadino.is_some() { "trasmesso (fittizio)" } else { "non trasmesso" }
         );
 
-        match invia_a(url, Operazione::Inserimento, &documento, &credenziali, 60, true) {
+        let timeout = std::env::var("STS_TIMEOUT")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(60);
+
+        match invia_a(url, Operazione::Inserimento, &documento, &credenziali, timeout, true) {
             Ok(risposta) => {
                 println!("esitoChiamata: {}", risposta.esito_chiamata);
                 println!("protocollo   : {:?}", risposta.protocollo);

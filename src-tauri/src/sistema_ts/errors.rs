@@ -78,9 +78,13 @@ impl ErroreSistemaTs {
         }
     }
 
+    /// Il Sistema TS non risponde `401` quando le credenziali non sono valide:
+    /// tiene aperta la comunicazione per un minuto e poi la chiude di colpo.
+    /// Chi legge il messaggio deve quindi sospettare anche il pincode, non solo
+    /// la linea.
     pub fn rete_non_raggiungibile() -> Self {
         ErroreSistemaTs::Rete {
-            messaggio: "Impossibile raggiungere il Sistema TS. Controlla la connessione Internet e riprova."
+            messaggio: "Impossibile raggiungere il Sistema TS. Controlla la connessione Internet e, se funziona, verifica pincode e parola chiave nel profilo: quando non sono corretti il Sistema TS chiude la comunicazione senza rispondere."
                 .into(),
             esito_incerto: false,
         }
@@ -88,7 +92,7 @@ impl ErroreSistemaTs {
 
     pub fn timeout() -> Self {
         ErroreSistemaTs::Rete {
-            messaggio: "Il Sistema TS non ha risposto in tempo. Prima di ritentare verifica sul portale se il documento risulta già registrato."
+            messaggio: "Il Sistema TS non ha risposto in tempo. Può succedere anche quando pincode o parola chiave non sono corretti. Prima di ritentare verifica sul portale se il documento risulta già registrato."
                 .into(),
             esito_incerto: true,
         }

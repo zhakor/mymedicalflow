@@ -1,6 +1,7 @@
 import { storageService } from './storageService'
 import { servizioService } from './servizioService'
 import { STATO_PRESENZA_DEFAULT } from '../types/appuntamento'
+import type { StatoPresenza } from '../types/appuntamento'
 import type {
   Appointment,
   AppointmentInput,
@@ -125,6 +126,21 @@ export const appuntamentoService = {
     all[index] = spostato
     saveAll(all)
     return spostato
+  },
+
+  /** Aggiorna la sola presenza, senza rimaneggiare il resto. */
+  segnaPresenza(id: string, presenza: StatoPresenza): Appointment | null {
+    const all = getAll()
+    const index = all.findIndex((a) => a.id === id)
+    if (index === -1) return null
+    const aggiornato: Appointment = {
+      ...all[index],
+      presenza,
+      updatedAt: new Date().toISOString(),
+    }
+    all[index] = aggiornato
+    saveAll(all)
+    return aggiornato
   },
 
   delete(id: string): void {

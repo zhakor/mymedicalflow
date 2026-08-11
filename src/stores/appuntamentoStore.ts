@@ -7,6 +7,7 @@ import type {
   AppointmentFilters,
   AppointmentInput,
 } from '../types/appuntamento'
+import type { StatoPresenza } from '../types/appuntamento'
 
 export type { Appointment }
 
@@ -35,6 +36,7 @@ export interface AppuntamentoStore {
   updateAppointment: (id: string, input: AppointmentInput) => void
   /** Sposta data e ora senza toccare il resto: usato dal trascinamento. */
   spostaAppointment: (id: string, data: string, ora: string) => void
+  segnaPresenza: (id: string, stato: StatoPresenza) => void
   deleteAppointment: (id: string) => void
   showFeedback: (message: string, type?: 'success' | 'error') => void
   clearFeedback: () => void
@@ -90,6 +92,13 @@ export const useAppuntamentoStore = create<AppuntamentoStore>((set, get) => ({
     appuntamentoService.update(id, input)
     get().loadAppointments()
     get().showFeedback('Appuntamento aggiornato con successo.')
+  },
+
+  // Senza messaggio: il pulsante cambia colore all'istante, e un avviso a ogni
+  // spunta diventerebbe rumore quando si segna una giornata intera.
+  segnaPresenza: (id, stato) => {
+    appuntamentoService.segnaPresenza(id, stato)
+    get().loadAppointments()
   },
 
   // Il messaggio lo compone chi chiama: solo lì si sa se è cambiato l'orario,

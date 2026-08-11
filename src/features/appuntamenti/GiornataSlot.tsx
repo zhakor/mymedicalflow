@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { clsx } from 'clsx'
-import { Clock, Pencil, Plus, Trash2, TriangleAlert } from 'lucide-react'
+import { Check, Clock, Pencil, Plus, Trash2, TriangleAlert, UserX } from 'lucide-react'
 import {
   ORA_APERTURA,
   ORA_CHIUSURA,
@@ -11,7 +11,8 @@ import {
 } from '../../lib/agendaService'
 import { servizioService } from '../../lib/servizioService'
 import { accettaRilascio, idTrascinato, iniziaTrascinamento } from './trascinamento'
-import type { Appointment } from '../../types/appuntamento'
+import type { Appointment, StatoPresenza } from '../../types/appuntamento'
+import { STATO_PRESENZA_DEFAULT } from '../../types/appuntamento'
 
 interface GiornataSlotProps {
   appuntamenti: Appointment[]
@@ -21,6 +22,7 @@ interface GiornataSlotProps {
   onElimina: (a: Appointment) => void
   /** Rilascio del trascinamento su un orario della stessa giornata. */
   onSposta: (id: string, ora: string) => void
+  onPresenza: (a: Appointment, stato: StatoPresenza) => void
 }
 
 /** Riga di un appuntamento, condivisa fra slot orari e fuori orario. */
@@ -28,11 +30,14 @@ function RigaAppuntamento({
   appuntamento,
   onModifica,
   onElimina,
+  onPresenza,
 }: {
   appuntamento: Appointment
   onModifica: (a: Appointment) => void
   onElimina: (a: Appointment) => void
+  onPresenza: (a: Appointment, stato: StatoPresenza) => void
 }) {
+  const presenza = appuntamento.presenza ?? STATO_PRESENZA_DEFAULT
   const [inMovimento, setInMovimento] = useState(false)
   const classi = servizioService.classiDi(appuntamento)
   const durata = servizioService.durataDi(appuntamento)
@@ -67,12 +72,52 @@ function RigaAppuntamento({
         )}
       </div>
 
-      <div className="flex flex-shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+      <div className="flex flex-shrink-0 items-center gap-1">
+        {/* Segnare la presenza è il gesto più frequente dopo una seduta:
+            resta visibile invece di nascondersi dietro il passaggio del mouse */}
+        <button
+          type="button"
+          onClick={() =>
+            onPresenza(appuntamento, presenza === 'presente' ? 'programmato' : 'presente')
+          }
+          aria-pressed={presenza === 'presente'}
+          aria-label={`Segna ${appuntamento.patientLastName} come presente`}
+          title="Presente"
+          className={clsx(
+            'flex h-7 w-7 items-center justify-center rounded-lg transition-colors',
+            presenza === 'presente'
+              ? 'bg-emerald-500 text-white'
+              : 'text-gray-400 hover:bg-white hover:text-emerald-600 dark:hover:bg-gray-800',
+          )}
+        >
+          <Check size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onPresenza(appuntamento, presenza === 'assente' ? 'programmato' : 'assente')
+          }
+          aria-pressed={presenza === 'assente'}
+          aria-label={`Segna ${appuntamento.patientLastName} come assente`}
+          title="Assente"
+          className={clsx(
+            'flex h-7 w-7 items-center justify-center rounded-lg transition-colors',
+            presenza === 'assente'
+              ? 'bg-gray-500 text-white'
+              : 'text-gray-400 hover:bg-white hover:text-gray-700 dark:hover:bg-gray-800',
+          )}
+        >
+          <UserX size={14} />
+        </button>
+
+        <span className="mx-0.5 h-4 w-px bg-gray-200 dark:bg-gray-700" />
+
+        {/* Modifica ed eliminazione restano defilate: si usano di rado */}
         <button
           type="button"
           onClick={() => onModifica(appuntamento)}
           aria-label={`Modifica appuntamento di ${appuntamento.patientLastName}`}
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-white hover:text-teal-600 dark:hover:bg-gray-800"
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 opacity-0 transition-all hover:bg-white hover:text-teal-600 focus:opacity-100 group-hover:opacity-100 dark:hover:bg-gray-800"
         >
           <Pencil size={14} />
         </button>
@@ -80,7 +125,7 @@ function RigaAppuntamento({
           type="button"
           onClick={() => onElimina(appuntamento)}
           aria-label={`Elimina appuntamento di ${appuntamento.patientLastName}`}
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-white hover:text-red-600 dark:hover:bg-gray-800"
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 opacity-0 transition-all hover:bg-white hover:text-red-600 focus:opacity-100 group-hover:opacity-100 dark:hover:bg-gray-800"
         >
           <Trash2 size={14} />
         </button>
@@ -96,6 +141,7 @@ export function GiornataSlot({
   onModifica,
   onElimina,
   onSposta,
+  onPresenza,
 }: GiornataSlotProps) {
   /** Slot sotto il puntatore durante un trascinamento. */
   const [bersaglio, setBersaglio] = useState<string | null>(null)
@@ -185,6 +231,7 @@ export function GiornataSlot({
                         appuntamento={a}
                         onModifica={onModifica}
                         onElimina={onElimina}
+                        onPresenza={onPresenza}
                       />
                     ))}
                   </div>
@@ -208,6 +255,7 @@ export function GiornataSlot({
                   appuntamento={a}
                   onModifica={onModifica}
                   onElimina={onElimina}
+                  onPresenza={onPresenza}
                 />
               ))}
             </div>

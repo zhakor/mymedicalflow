@@ -30,6 +30,7 @@ export function AppuntamentiPage() {
     updateAppointment,
     deleteAppointment,
     spostaAppointment,
+    segnaPresenza,
     showFeedback,
   } = useAppuntamentoStore()
 
@@ -243,6 +244,7 @@ export function AppuntamentiPage() {
             onModifica={handleEdit}
             onElimina={handleDeleteRequest}
             onSposta={(id, ora) => spostaSeLibero(id, giornoSelezionato, ora)}
+            onPresenza={(a, stato) => segnaPresenza(a.id, stato)}
           />
         </div>
       ) : (

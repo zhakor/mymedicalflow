@@ -16,6 +16,7 @@ import { fatturaService } from '../../lib/fatturaService'
 import { pazienteService } from '../../lib/pazienteService'
 import { useImpostazioniStore } from '../../stores/impostazioniStore'
 import { PazienteOmonimoModal } from './PazienteOmonimoModal'
+import { RiepilogoPresenze } from './RiepilogoPresenze'
 import { sistemaTsService } from '../../lib/sistemaTsService'
 import type { DatiSistemaTs } from '../../types/sistemaTs'
 import type { Patient } from '../../types/paziente'
@@ -597,6 +598,17 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
                         error={errors.stampDutyNumber}
                       />
                     )}
+
+                    {/* Confronto con le sedute svolte: compare solo quando c'è
+                        un paziente collegato e qualcosa da confrontare */}
+                    <RiepilogoPresenze
+                      patientId={form.patientId}
+                      issueDate={form.issueDate}
+                      importoCorrente={amountNum}
+                      onUsaImporto={(importo) =>
+                        set('amount', importo.toFixed(2).replace('.', ','))
+                      }
+                    />
                   </div>
                 </div>
               </>

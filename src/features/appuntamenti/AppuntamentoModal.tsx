@@ -1,18 +1,21 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { PazienteOmonimoModal } from '../fatture/PazienteOmonimoModal'
 import { pazienteService } from '../../lib/pazienteService'
+import { appuntamentoService } from '../../lib/appuntamentoService'
+import { oggi, verificaSlot } from '../../lib/agendaService'
+import type { EsitoSlot } from '../../lib/agendaService'
 import type { Patient } from '../../types/paziente'
 import type { Appointment, AppointmentInput, AppointmentType } from '../../types/appuntamento'
-import { APPOINTMENT_TYPE_OPTIONS } from '../../types/appuntamento'
+import { APPOINTMENT_TYPE_LABELS, APPOINTMENT_TYPE_OPTIONS } from '../../types/appuntamento'
 import {
   validateAppointment,
   hasAppointmentErrors,
 } from './appuntamentoValidation'
 import type { AppointmentFormErrors } from './appuntamentoValidation'
-import { Calendar, X } from 'lucide-react'
+import { Calendar, CircleCheck, CircleAlert, TriangleAlert, X } from 'lucide-react'
 
 // ─── Stato form ───────────────────────────────────────────────────────────────
 
@@ -48,10 +51,60 @@ function appointmentToForm(a: Appointment): FormState {
   }
 }
 
+// ─── Stato dello slot ─────────────────────────────────────────────────────────
+
+/**
+ * Dice se l'orario scelto è libero, occupato o vicino a un altro appuntamento.
+ *
+ * I tre casi hanno peso diverso: l'orario identico impedisce il salvataggio,
+ * la vicinanza è solo un avviso — la durata delle sedute non è un dato salvato,
+ * quindi la sovrapposizione è una stima e non può bloccare una scelta.
+ */
+function StatoSlot({ slot }: { slot: EsitoSlot }) {
+  if (slot.identico) {
+    return (
+      <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 dark:border-red-900 dark:bg-red-900/20">
+        <CircleAlert size={15} className="mt-0.5 flex-shrink-0 text-red-500" />
+        <p className="text-xs text-red-700 dark:text-red-400">
+          <span className="font-semibold">Orario già occupato</span> da{' '}
+          {slot.identico.patientLastName} {slot.identico.patientFirstName} (
+          {APPOINTMENT_TYPE_LABELS[slot.identico.appointmentType].toLowerCase()}). Scegli
+          un altro orario.
+        </p>
+      </div>
+    )
+  }
+
+  if (slot.vicini.length > 0) {
+    return (
+      <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900 dark:bg-amber-900/20">
+        <TriangleAlert size={15} className="mt-0.5 flex-shrink-0 text-amber-500" />
+        <p className="text-xs text-amber-800 dark:text-amber-300">
+          <span className="font-semibold">Poco distante</span> da{' '}
+          {slot.vicini
+            .map((a) => `${a.patientLastName} (${a.appointmentTime})`)
+            .join(', ')}
+          . Puoi salvare comunque.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 dark:border-teal-900 dark:bg-teal-900/20">
+      <CircleCheck size={15} className="flex-shrink-0 text-teal-500" />
+      <p className="text-xs font-medium text-teal-700 dark:text-teal-400">Orario libero</p>
+    </div>
+  )
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface AppuntamentoModalProps {
   appointment?: Appointment | null
+  /** Valori di partenza per un nuovo appuntamento, es. da uno slot del calendario. */
+  dataIniziale?: string
+  oraIniziale?: string
   onClose: () => void
   onSaved: (message: string) => void
   onSave: (input: AppointmentInput, id?: string) => void
@@ -61,6 +114,8 @@ interface AppuntamentoModalProps {
 
 export function AppuntamentoModal({
   appointment,
+  dataIniziale,
+  oraIniziale,
   onClose,
   onSaved,
   onSave,
@@ -72,11 +127,27 @@ export function AppuntamentoModal({
       ? appointmentToForm(appointment)
       : {
           ...EMPTY_FORM,
-          appointmentDate: new Date().toISOString().slice(0, 10),
+          // `oggi()` legge il fuso locale: `toISOString()` dopo mezzanotte
+          // proporrebbe ancora il giorno prima.
+          appointmentDate: dataIniziale || oggi(),
+          appointmentTime: oraIniziale ?? '',
         },
   )
   const [errors, setErrors] = useState<AppointmentFormErrors>({})
   const [saving, setSaving] = useState(false)
+
+  // Occupazione dello slot scelto. Si rilegge a ogni modifica di data o ora:
+  // è l'informazione che serve prima di salvare, non dopo.
+  const slot = useMemo(
+    () =>
+      verificaSlot(
+        appuntamentoService.getAllAppointments(),
+        form.appointmentDate,
+        form.appointmentTime,
+        appointment?.id,
+      ),
+    [form.appointmentDate, form.appointmentTime, appointment?.id],
+  )
 
   // Ricerca paziente / omonimi
   const [omonimoCandidates, setOmonimoCandidates] = useState<Patient[]>([])
@@ -173,6 +244,10 @@ export function AppuntamentoModal({
       setErrors(validationErrors)
       return
     }
+    // Rete di sicurezza: il pulsante è già disabilitato in questo caso, e il
+    // motivo sta nel riquadro sopra. Ripetere qui il messaggio lo mostrerebbe
+    // due volte nella stessa schermata.
+    if (slot.identico) return
     setSaving(true)
     try {
       onSave(input, isEdit ? appointment!.id : undefined)
@@ -289,6 +364,11 @@ export function AppuntamentoModal({
                       error={errors.appointmentTime}
                     />
                   </div>
+
+                  {/* Stato dello slot: si vede prima di salvare, non dopo */}
+                  {form.appointmentDate && form.appointmentTime && (
+                    <StatoSlot slot={slot} />
+                  )}
                 </div>
               </div>
 
@@ -310,7 +390,13 @@ export function AppuntamentoModal({
               <Button type="button" variant="secondary" onClick={onClose}>
                 Annulla
               </Button>
-              <Button type="submit" loading={saving}>
+              {/* Disabilitato sullo slot occupato: il riquadro sopra dice perché */}
+              <Button
+                type="submit"
+                loading={saving}
+                disabled={!!slot.identico}
+                title={slot.identico ? 'Orario già occupato' : undefined}
+              >
                 {isEdit ? 'Salva modifiche' : 'Crea appuntamento'}
               </Button>
             </div>

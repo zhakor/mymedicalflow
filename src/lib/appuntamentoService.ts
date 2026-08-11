@@ -66,6 +66,14 @@ export const appuntamentoService = {
     return getAll().find((a) => a.id === id) ?? null
   },
 
+  /**
+   * Tutti gli appuntamenti, senza paginazione.
+   * Il calendario mostra un mese intero e non può lavorare a pagine.
+   */
+  getAllAppointments(): Appointment[] {
+    return getAll().filter(Boolean)
+  },
+
   create(input: AppointmentInput): Appointment {
     const now = new Date().toISOString()
     const appointment: Appointment = {

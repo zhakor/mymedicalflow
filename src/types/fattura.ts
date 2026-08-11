@@ -68,12 +68,39 @@ export type InvoiceInput = Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>
 
 // ─── Filtri ───────────────────────────────────────────────────────────────────
 
+/**
+ * Filtro sullo stato rispetto al Sistema TS.
+ *
+ * `soggette` raccoglie tutte le fatture per cui è prevista la trasmissione,
+ * qualunque sia il punto in cui si trovano; le altre voci corrispondono a uno
+ * stato preciso. `non_previste` serve a trovare le fatture rimaste fuori.
+ */
+export type InvoiceSistemaTsFilter =
+  | ''
+  | 'soggette'
+  | 'da_inviare'
+  | 'trasmesse'
+  | 'errore'
+  | 'non_previste'
+
+export const INVOICE_SISTEMA_TS_FILTER_OPTIONS = [
+  { value: 'soggette', label: 'Soggette alla trasmissione' },
+  { value: 'da_inviare', label: 'Da inviare' },
+  { value: 'trasmesse', label: 'Trasmesse' },
+  { value: 'errore', label: 'In errore' },
+  { value: 'non_previste', label: 'Non previste' },
+]
+
 export interface InvoiceFilters {
   fiscalCode?: string
   invoiceNumber?: string
   patientLastName?: string
-  description?: string
   status?: InvoiceStatus | ''
+  invoiceType?: InvoiceType | ''
+  sistemaTs?: InvoiceSistemaTsFilter
+  /** Estremi inclusi, sulla data di emissione. */
+  issuedFrom?: string
+  issuedTo?: string
 }
 
 // ─── Query paginata ───────────────────────────────────────────────────────────

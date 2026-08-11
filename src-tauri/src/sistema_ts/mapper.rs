@@ -29,6 +29,10 @@ pub struct DatiFatturaTs {
     pub data_pagamento: String,
     pub pagamento_tracciato: String,
     pub opposizione: bool,
+    /// "F" fattura, "D" documento commerciale. Assente sulle fatture registrate
+    /// prima dell'introduzione del campo: vale allora "F".
+    #[serde(default)]
+    pub tipo_documento: Option<String>,
     pub tipo_spesa: String,
     pub aliquota_iva: Option<f64>,
     pub natura_iva: Option<String>,
@@ -128,6 +132,19 @@ pub fn in_documento_spesa(dati: &DatiFatturaTs) -> Result<DocumentoSpesa, Errore
         mancanti.push("Codice fiscale dell'assistito".into());
     }
 
+    // L'XSD ammette solo "F" e "D": un valore diverso verrebbe rifiutato dal
+    // Sistema TS con un errore poco leggibile, meglio dirlo qui.
+    let tipo_documento = dati
+        .tipo_documento
+        .as_deref()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .unwrap_or("F")
+        .to_uppercase();
+    if tipo_documento != "F" && tipo_documento != "D" {
+        mancanti.push("Tipo documento: ammessi solo fattura o documento commerciale".into());
+    }
+
     if !mancanti.is_empty() {
         return Err(ErroreSistemaTs::validazione(mancanti));
     }
@@ -155,8 +172,7 @@ pub fn in_documento_spesa(dati: &DatiFatturaTs) -> Result<DocumentoSpesa, Errore
                 .map(str::to_uppercase),
         }],
         pagamento_tracciato: Some(dati.pagamento_tracciato.clone()),
-        // L'app emette fatture: "D" riguarda i documenti commerciali
-        tipo_documento: Some("F".into()),
+        tipo_documento: Some(tipo_documento),
         flag_opposizione: Some(if dati.opposizione { "1".into() } else { "0".into() }),
     })
 }
@@ -177,6 +193,7 @@ mod tests {
             data_pagamento: "2026-03-31".into(),
             pagamento_tracciato: "SI".into(),
             opposizione: false,
+            tipo_documento: Some("F".into()),
             tipo_spesa: "SP".into(),
             aliquota_iva: Some(0.0),
             natura_iva: None,
@@ -192,6 +209,34 @@ mod tests {
         // Senza barra resta invariato
         assert_eq!(numero_documento("A40"), "A40");
         assert_eq!(numero_documento(" 12 /2026"), "12");
+    }
+
+    #[test]
+    fn il_documento_commerciale_arriva_al_tracciato() {
+        let mut d = dati();
+        d.tipo_documento = Some("d".into());
+        assert_eq!(
+            in_documento_spesa(&d).unwrap().tipo_documento.as_deref(),
+            Some("D"),
+        );
+    }
+
+    /// Le fatture registrate prima dell'introduzione del campo restano valide.
+    #[test]
+    fn senza_tipo_documento_vale_la_fattura() {
+        let mut d = dati();
+        d.tipo_documento = None;
+        assert_eq!(
+            in_documento_spesa(&d).unwrap().tipo_documento.as_deref(),
+            Some("F"),
+        );
+    }
+
+    #[test]
+    fn un_tipo_documento_fuori_tracciato_viene_respinto() {
+        let mut d = dati();
+        d.tipo_documento = Some("X".into());
+        assert!(in_documento_spesa(&d).is_err());
     }
 
     #[test]

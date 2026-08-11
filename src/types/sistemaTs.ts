@@ -67,6 +67,16 @@ export const PAGAMENTO_TRACCIATO_OPTIONS = [
   { value: 'NO', label: 'No — contanti' },
 ]
 
+/** Codici ammessi da `tipoDocumento` nell'XSD: fattura o documento commerciale. */
+export type TipoDocumentoTs = 'F' | 'D'
+
+export const TIPO_DOCUMENTO_OPTIONS = [
+  { value: 'F', label: 'Fattura' },
+  { value: 'D', label: 'Documento commerciale' },
+]
+
+export const TIPO_DOCUMENTO_DEFAULT: TipoDocumentoTs = 'F'
+
 /**
  * Dati aggiuntivi richiesti dal Sistema TS e non ricavabili dalla fattura.
  * Presenti solo quando la fattura è soggetta a trasmissione.
@@ -77,6 +87,11 @@ export interface DatiSistemaTs {
   pagamentoTracciato: PagamentoTracciato
   /** L'assistito si oppone all'invio dei propri dati all'Agenzia delle Entrate. */
   opposizione: boolean
+  /**
+   * Assente sulle fatture registrate prima dell'introduzione del campo: in
+   * trasmissione vale allora il valore predefinito.
+   */
+  tipoDocumento?: TipoDocumentoTs
   tipoSpesa: TipoSpesa
   /** Alternativi fra loro, come impone l'`xs:choice` dell'XSD. */
   aliquotaIva?: number
@@ -90,6 +105,7 @@ export function datiSistemaTsPredefiniti(dataEmissione: string): DatiSistemaTs {
     dataPagamento: dataEmissione,
     pagamentoTracciato: 'SI',
     opposizione: false,
+    tipoDocumento: TIPO_DOCUMENTO_DEFAULT,
     tipoSpesa: TIPO_SPESA_DEFAULT,
     aliquotaIva: 0,
   }

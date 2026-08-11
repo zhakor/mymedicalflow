@@ -15,8 +15,11 @@ const EMPTY_FILTERS: InvoiceFilters = {
   fiscalCode: '',
   invoiceNumber: '',
   patientLastName: '',
-  description: '',
   status: '',
+  invoiceType: '',
+  sistemaTs: '',
+  issuedFrom: '',
+  issuedTo: '',
 }
 
 export interface FatturaStore {

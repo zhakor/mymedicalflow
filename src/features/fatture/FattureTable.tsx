@@ -2,12 +2,24 @@ import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import { MenuAzioniFattura } from './MenuAzioniFattura'
+import { sistemaTsService } from '../../lib/sistemaTsService'
+import { STATO_STS_LABELS } from '../../types/sistemaTs'
+import type { StatoSistemaTS } from '../../types/sistemaTs'
 import type { Invoice, PaginatedInvoices } from '../../types/fattura'
 import { INVOICE_STATUS_LABELS, INVOICE_TYPE_LABELS } from '../../types/fattura'
 import { FileText, ChevronLeft, ChevronRight } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const PAGE_SIZE_OPTIONS = [5, 10, 25, 50]
+
+const COLORE_STATO_TS: Record<StatoSistemaTS, 'success' | 'warning' | 'muted' | 'error'> = {
+  non_previsto: 'muted',
+  da_inviare: 'warning',
+  inviata: 'success',
+  errore: 'error',
+  variata: 'success',
+  cancellata: 'muted',
+}
 
 interface FattureTableProps {
   result: PaginatedInvoices
@@ -76,11 +88,11 @@ export function FattureTable({
                 'Nome',
                 'Cognome',
                 'Importo',
-                'Bollo',
                 'Num. Bollo',
                 'Stato',
                 'Data Emissione',
                 'Tipo',
+                'Sistema TS',
                 'Azioni',
               ].map((col, i, arr) => (
                 <th
@@ -124,9 +136,6 @@ export function FattureTable({
                   {formatAmount(inv.amount)}
                 </td>
                 <td className="px-3 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                  {inv.stampDuty > 0 ? formatAmount(inv.stampDuty) : '—'}
-                </td>
-                <td className="px-3 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">
                   {inv.stampDutyNumber || '—'}
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap">
@@ -143,6 +152,20 @@ export function FattureTable({
                   <Badge variant={inv.invoiceType === 'elettronica' ? 'info' : 'muted'}>
                     {INVOICE_TYPE_LABELS[inv.invoiceType]}
                   </Badge>
+                </td>
+                {/* Stato rispetto al Sistema TS: vive nell'archivio delle
+                    trasmissioni, non sulla fattura. */}
+                <td className="px-3 py-3 whitespace-nowrap">
+                  {(() => {
+                    const statoTs = sistemaTsService.statoPerFattura(inv)
+                    return statoTs === 'non_previsto' ? (
+                      <span className="text-gray-300 dark:text-gray-600">—</span>
+                    ) : (
+                      <Badge variant={COLORE_STATO_TS[statoTs]}>
+                        {STATO_STS_LABELS[statoTs]}
+                      </Badge>
+                    )
+                  })()}
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap sticky right-0 z-10 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
                   <div className="flex items-center justify-center">

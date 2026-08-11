@@ -70,6 +70,9 @@ export const EMPTY_INVOICE_FILTERS: InvoiceFilters = {
   fiscalCode: '',
   invoiceNumber: '',
   patientLastName: '',
-  description: '',
   status: '',
+  invoiceType: '',
+  sistemaTs: '',
+  issuedFrom: '',
+  issuedTo: '',
 }

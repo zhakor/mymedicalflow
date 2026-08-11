@@ -45,8 +45,11 @@ export function FatturePage() {
       f.fiscalCode ||
       f.invoiceNumber ||
       f.patientLastName ||
-      f.description ||
-      f.status
+      f.status ||
+      f.invoiceType ||
+      f.sistemaTs ||
+      f.issuedFrom ||
+      f.issuedTo
     )
   }
 

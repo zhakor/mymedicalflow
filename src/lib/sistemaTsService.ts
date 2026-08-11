@@ -298,6 +298,8 @@ export function datiPerTrasmissione(
     dataPagamento: ts?.dataPagamento ?? invoice.issueDate,
     pagamentoTracciato: ts?.pagamentoTracciato ?? 'SI',
     opposizione: ts?.opposizione ?? false,
+    // Assente sulle fatture registrate prima dell'introduzione del campo
+    tipoDocumento: ts?.tipoDocumento ?? 'F',
     tipoSpesa: ts?.tipoSpesa ?? 'SP',
     aliquotaIva: ts?.aliquotaIva,
     naturaIva: ts?.naturaIva,

@@ -4,14 +4,15 @@ import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import type { InvoiceFilters } from '../../types/fattura'
-import { INVOICE_STATUS_OPTIONS } from '../../types/fattura'
+import {
+  INVOICE_SISTEMA_TS_FILTER_OPTIONS,
+  INVOICE_STATUS_OPTIONS,
+  INVOICE_TYPE_OPTIONS,
+} from '../../types/fattura'
 import { EMPTY_INVOICE_FILTERS } from './fatturaValidation'
 import { Search, RotateCcw } from 'lucide-react'
 
-const STATUS_FILTER_OPTIONS = [
-  { value: '', label: 'Tutti gli stati' },
-  ...INVOICE_STATUS_OPTIONS,
-]
+// La voce vuota la mette il `Select`: qui basta darle un nome sensato.
 
 interface FattureFiltersProps {
   onSearch: (filters: InvoiceFilters) => void
@@ -35,6 +36,9 @@ export function FattureFilters({ onSearch, onReset }: FattureFiltersProps) {
     onReset()
   }
 
+  const periodoRovesciato =
+    !!form.issuedFrom && !!form.issuedTo && form.issuedFrom > form.issuedTo
+
   return (
     <Card padding="sm">
       <form onSubmit={handleSearch}>
@@ -57,19 +61,48 @@ export function FattureFilters({ onSearch, onReset }: FattureFiltersProps) {
             value={form.invoiceNumber ?? ''}
             onChange={(e) => handleChange('invoiceNumber', e.target.value)}
           />
-          <Input
-            label="Descrizione"
-            placeholder="Es. Seduta..."
-            value={form.description ?? ''}
-            onChange={(e) => handleChange('description', e.target.value)}
-          />
           <Select
             label="Stato"
-            options={STATUS_FILTER_OPTIONS}
+            placeholder="Tutti gli stati"
+            options={INVOICE_STATUS_OPTIONS}
             value={form.status ?? ''}
             onChange={(e) => handleChange('status', e.target.value)}
           />
+          <Select
+            label="Tipo fattura"
+            placeholder="Tutti i tipi"
+            options={INVOICE_TYPE_OPTIONS}
+            value={form.invoiceType ?? ''}
+            onChange={(e) => handleChange('invoiceType', e.target.value)}
+          />
+          <Select
+            label="Sistema TS"
+            placeholder="Tutte"
+            options={INVOICE_SISTEMA_TS_FILTER_OPTIONS}
+            value={form.sistemaTs ?? ''}
+            onChange={(e) => handleChange('sistemaTs', e.target.value)}
+          />
+          <Input
+            label="Emesse dal"
+            type="date"
+            value={form.issuedFrom ?? ''}
+            onChange={(e) => handleChange('issuedFrom', e.target.value)}
+          />
+          <Input
+            label="Emesse al"
+            type="date"
+            value={form.issuedTo ?? ''}
+            onChange={(e) => handleChange('issuedTo', e.target.value)}
+          />
         </div>
+
+        {/* Un periodo rovesciato non restituirebbe nulla senza spiegare perché */}
+        {periodoRovesciato && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+            La data iniziale è successiva a quella finale: nessuna fattura può rientrare
+            in questo periodo.
+          </p>
+        )}
 
         <div className="flex gap-2 mt-4 justify-end">
           <Button type="button" variant="secondary" size="sm" onClick={handleReset}>

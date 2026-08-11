@@ -10,9 +10,22 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string
   options: Option[]
   error?: string
+  /**
+   * Testo della voce vuota. Nei filtri "Seleziona..." è fuorviante, perché
+   * l'assenza di scelta significa "tutte".
+   */
+  placeholder?: string
 }
 
-export function Select({ label, options, error, className, id, ...props }: SelectProps) {
+export function Select({
+  label,
+  options,
+  error,
+  className,
+  id,
+  placeholder,
+  ...props
+}: SelectProps) {
   const selectId = id ?? label?.toLowerCase().replace(/\s+/g, '-')
 
   return (
@@ -32,7 +45,7 @@ export function Select({ label, options, error, className, id, ...props }: Selec
           className,
         )}
       >
-        <option value="">Seleziona...</option>
+        <option value="">{placeholder ?? 'Seleziona...'}</option>
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
             {opt.label}

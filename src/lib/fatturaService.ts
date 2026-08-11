@@ -1,4 +1,5 @@
 import { storageService } from './storageService'
+import { sistemaTsService } from './sistemaTsService'
 import type {
   Invoice,
   InvoiceInput,
@@ -42,13 +43,53 @@ function matchesFilters(inv: Invoice, filters: InvoiceFilters): boolean {
     !inv.patientLastName?.toLowerCase().includes(filters.patientLastName.toLowerCase())
   )
     return false
-  if (
-    filters.description &&
-    !inv.description?.toLowerCase().includes(filters.description.toLowerCase())
-  )
-    return false
   if (filters.status && inv.status !== filters.status) return false
+  if (filters.invoiceType && inv.invoiceType !== filters.invoiceType) return false
+  // Le date sono in formato ISO "AAAA-MM-GG": il confronto fra stringhe
+  // rispetta l'ordine cronologico, estremi inclusi.
+  if (filters.issuedFrom && (inv.issueDate ?? '') < filters.issuedFrom) return false
+  if (filters.issuedTo && (inv.issueDate ?? '') > filters.issuedTo) return false
+  if (filters.sistemaTs && !corrispondeSistemaTs(inv, filters.sistemaTs)) return false
   return true
+}
+
+/** Confronto fra la fattura e il filtro sullo stato di trasmissione. */
+function corrispondeSistemaTs(
+  inv: Invoice,
+  filtro: NonNullable<InvoiceFilters['sistemaTs']>,
+): boolean {
+  const stato = sistemaTsService.statoPerFattura(inv)
+  switch (filtro) {
+    case 'soggette':
+      return stato !== 'non_previsto'
+    case 'non_previste':
+      return stato === 'non_previsto'
+    case 'da_inviare':
+      return stato === 'da_inviare'
+    // Una variazione è comunque arrivata al Sistema TS
+    case 'trasmesse':
+      return stato === 'inviata' || stato === 'variata'
+    case 'errore':
+      return stato === 'errore'
+    default:
+      return true
+  }
+}
+
+/**
+ * Anno e progressivo di un numero "N/AAAA".
+ *
+ * Confrontarlo come testo mette "99/2026" fra "102/2026" e "105/2026", perché
+ * '9' viene dopo '1': i due pezzi vanno letti come numeri.
+ */
+function chiaveNumero(invoiceNumber: string): { anno: number; progressivo: number } {
+  const [testaProgressivo, testaAnno] = (invoiceNumber ?? '').split('/')
+  const progressivo = parseInt(testaProgressivo, 10)
+  const anno = parseInt(testaAnno, 10)
+  return {
+    anno: Number.isNaN(anno) ? 0 : anno,
+    progressivo: Number.isNaN(progressivo) ? 0 : progressivo,
+  }
 }
 
 // ─── Servizio fatture ─────────────────────────────────────────────────────────
@@ -59,12 +100,15 @@ export const fatturaService = {
     const all = getAll()
     const filtered = all.filter((inv) => matchesFilters(inv, filters))
 
-    // Ordina per data emissione desc, poi per numero fattura desc
+    // Ordine del registro: anno e progressivo decrescenti. Il numero viene
+    // prima della data perché è l'ordine con cui le fatture sono state emesse;
+    // una fattura retrodatata altrimenti comparirebbe fuori sequenza.
     filtered.sort((a, b) => {
-      const dateDiff =
-        new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime()
-      if (dateDiff !== 0) return dateDiff
-      return b.invoiceNumber.localeCompare(a.invoiceNumber)
+      const ka = chiaveNumero(a.invoiceNumber)
+      const kb = chiaveNumero(b.invoiceNumber)
+      if (ka.anno !== kb.anno) return kb.anno - ka.anno
+      if (ka.progressivo !== kb.progressivo) return kb.progressivo - ka.progressivo
+      return new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime()
     })
 
     const totalItems = filtered.length

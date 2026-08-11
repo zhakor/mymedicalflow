@@ -2,11 +2,17 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import {
   PAGAMENTO_TRACCIATO_OPTIONS,
+  TIPO_DOCUMENTO_DEFAULT,
+  TIPO_DOCUMENTO_OPTIONS,
   TIPO_SPESA_OPTIONS,
   datiSistemaTsPredefiniti,
-  richiedeTipoDocumentoEOpposizione,
 } from '../../types/sistemaTs'
-import type { DatiSistemaTs, PagamentoTracciato, TipoSpesa } from '../../types/sistemaTs'
+import type {
+  DatiSistemaTs,
+  PagamentoTracciato,
+  TipoDocumentoTs,
+  TipoSpesa,
+} from '../../types/sistemaTs'
 
 export interface SistemaTsErrori {
   dataPagamento?: string
@@ -50,9 +56,6 @@ export function SistemaTsSection({
   }
 
   const usaNaturaIva = !!dati?.naturaIva
-  const obbligoOpposizione = richiedeTipoDocumentoEOpposizione(
-    dati?.dataPagamento ?? dataEmissione ?? '',
-  )
 
   return (
     <div className="border-t border-gray-100 dark:border-gray-800 pt-5">
@@ -97,6 +100,16 @@ export function SistemaTsSection({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+            {/* Quasi sempre "Fattura", ma il tracciato ammette anche il
+                documento commerciale e la scelta deve restare all'utente. */}
+            <Select
+              label="Tipo documento"
+              required
+              options={TIPO_DOCUMENTO_OPTIONS}
+              value={dati.tipoDocumento ?? TIPO_DOCUMENTO_DEFAULT}
+              disabled={bloccato}
+              onChange={(e) => aggiorna('tipoDocumento', e.target.value as TipoDocumentoTs)}
+            />
             <Select
               label="Tipo di spesa"
               required
@@ -106,7 +119,9 @@ export function SistemaTsSection({
               onChange={(e) => aggiorna('tipoSpesa', e.target.value as TipoSpesa)}
               error={errori.tipoSpesa}
             />
+          </div>
 
+          <div className="grid grid-cols-2 gap-4">
             {/* Aliquota e natura sono alternative: l'XSD le dichiara in xs:choice.
                 I due radio stanno sulla riga dell'etichetta, altrimenti
                 aggiungerebbero una riga e il campo si disallineerebbe dal
@@ -176,7 +191,6 @@ export function SistemaTsSection({
               />
               <span className="text-sm text-gray-700 dark:text-gray-300">
                 L'assistito si oppone all'invio dei propri dati
-                {obbligoOpposizione && <span className="text-red-500 ml-0.5">*</span>}
               </span>
             </label>
 

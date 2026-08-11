@@ -36,12 +36,22 @@ impl Ambiente {
     /// In sviluppo non si punta mai al ministero: un invio partito per sbaglio
     /// durante una prova diventerebbe una spesa sanitaria reale a nome di un
     /// paziente. `Locale` permette comunque di provare il protocollo per intero.
+    ///
+    /// L'app installata fa l'opposto e trasmette davvero: puntarla al collaudo
+    /// significherebbe non trasmettere mai nulla, per giunta in silenzio. Chi
+    /// vuole provare da una build di release usa `MYMEDICALFLOW_STS_AMBIENTE`.
     pub fn predefinito() -> Self {
-        if cfg!(debug_assertions) {
+        Self::predefinito_per(cfg!(debug_assertions))
+    }
+
+    /// Separata dal `cfg!` per poter verificare entrambi i rami: sotto
+    /// `cargo test` `debug_assertions` è sempre attivo, e il comportamento
+    /// dell'app installata resterebbe altrimenti senza prova.
+    fn predefinito_per(in_sviluppo: bool) -> Self {
+        if in_sviluppo {
             Ambiente::Locale
         } else {
-            // Anche in release la produzione resta una scelta esplicita
-            Ambiente::Test
+            Ambiente::Produzione
         }
     }
 
@@ -164,6 +174,14 @@ mod tests {
             "il default di sviluppo non deve contattare il Sistema TS"
         );
         assert_eq!(ConfigSistemaTs::default().ambiente, Ambiente::Locale);
+    }
+
+    /// L'app installata deve trasmettere sul serio: un pacchetto puntato al
+    /// collaudo non trasmetterebbe mai nulla, senza che nessuno se ne accorga.
+    #[test]
+    fn l_app_installata_punta_alla_produzione() {
+        assert_eq!(Ambiente::predefinito_per(false), Ambiente::Produzione);
+        assert_eq!(Ambiente::predefinito_per(true), Ambiente::Locale);
     }
 
     #[test]

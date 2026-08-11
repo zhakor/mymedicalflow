@@ -24,7 +24,12 @@ pub struct DatiFatturaTs {
     // Documento
     pub numero_fattura: String,
     pub data_emissione: String,
+    /// Solo la prestazione: il bollo arriva a parte e viene sommato qui.
     pub importo: f64,
+    /// Imposta di bollo, 0 quando non dovuta. Il Sistema TS vuole il totale
+    /// pagato dall'assistito, bollo compreso.
+    #[serde(default)]
+    pub importo_bollo: f64,
     // Dati del Sistema TS raccolti in fattura
     pub data_pagamento: String,
     pub pagamento_tracciato: String,
@@ -40,6 +45,10 @@ pub struct DatiFatturaTs {
     pub pagamento_anticipato: bool,
     /// In chiaro: viene cifrato al momento di comporre l'XML.
     pub codice_fiscale_assistito: Option<String>,
+}
+
+fn arrotonda_centesimi(valore: f64) -> f64 {
+    (valore * 100.0).round() / 100.0
 }
 
 /// Numero da trasmettere.
@@ -162,7 +171,10 @@ pub fn in_documento_spesa(dati: &DatiFatturaTs) -> Result<DocumentoSpesa, Errore
         cf_cittadino: if dati.opposizione { None } else { cf.map(str::to_string) },
         voci_spesa: vec![VoceSpesa {
             tipo_spesa: dati.tipo_spesa.trim().to_uppercase(),
-            importo: dati.importo,
+            // Al Sistema TS va il totale pagato: prestazione più imposta di
+            // bollo. L'arrotondamento evita che la somma di due decimali
+            // binari produca un terzo centesimo dal nulla.
+            importo: arrotonda_centesimi(dati.importo + dati.importo_bollo),
             aliquota_iva: dati.aliquota_iva,
             natura_iva: dati
                 .natura_iva
@@ -190,6 +202,7 @@ mod tests {
             numero_fattura: "40/2026".into(),
             data_emissione: "2026-03-31".into(),
             importo: 162.00,
+            importo_bollo: 0.0,
             data_pagamento: "2026-03-31".into(),
             pagamento_tracciato: "SI".into(),
             opposizione: false,
@@ -209,6 +222,34 @@ mod tests {
         // Senza barra resta invariato
         assert_eq!(numero_documento("A40"), "A40");
         assert_eq!(numero_documento(" 12 /2026"), "12");
+    }
+
+    /// Al Sistema TS va il totale pagato dall'assistito, bollo compreso.
+    #[test]
+    fn il_bollo_entra_nell_importo_trasmesso() {
+        let mut d = dati();
+        d.importo = 200.00;
+        d.importo_bollo = 2.00;
+        assert_eq!(in_documento_spesa(&d).unwrap().voci_spesa[0].importo, 202.00);
+    }
+
+    #[test]
+    fn senza_bollo_passa_la_sola_prestazione() {
+        let mut d = dati();
+        d.importo = 60.00;
+        d.importo_bollo = 0.0;
+        assert_eq!(in_documento_spesa(&d).unwrap().voci_spesa[0].importo, 60.00);
+    }
+
+    /// Due decimali binari sommati possono produrre un terzo centesimo.
+    #[test]
+    fn la_somma_resta_ai_centesimi() {
+        let mut d = dati();
+        d.importo = 77.47;
+        d.importo_bollo = 2.00;
+        let importo = in_documento_spesa(&d).unwrap().voci_spesa[0].importo;
+        assert_eq!(format!("{importo:.2}"), "79.47");
+        assert_eq!(importo, 79.47);
     }
 
     #[test]

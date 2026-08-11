@@ -295,6 +295,9 @@ export function datiPerTrasmissione(
     numeroFattura: invoice.invoiceNumber,
     dataEmissione: invoice.issueDate,
     importo: invoice.amount,
+    // Il Sistema TS vuole il totale pagato dall'assistito: la somma avviene
+    // nel mapper, qui viaggiano i valori della fattura così come sono.
+    importoBollo: invoice.stampDuty ?? 0,
     dataPagamento: ts?.dataPagamento ?? invoice.issueDate,
     pagamentoTracciato: ts?.pagamentoTracciato ?? 'SI',
     opposizione: ts?.opposizione ?? false,

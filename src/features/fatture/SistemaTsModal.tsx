@@ -184,8 +184,12 @@ export function SistemaTsModal({ invoice, onClose, onAggiornato }: SistemaTsModa
 
           {fattura.stampDuty > 0 && (
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              L'imposta di bollo di {formatImporto(fattura.stampDuty)} non viene trasmessa:
-              il Sistema TS accoglie il solo importo della prestazione.
+              Al Sistema TS viene trasmesso{' '}
+              <strong className="text-gray-700 dark:text-gray-300">
+                {formatImporto(fattura.amount + fattura.stampDuty)}
+              </strong>
+              : è il totale pagato dall'assistito, prestazione più imposta di bollo di{' '}
+              {formatImporto(fattura.stampDuty)}.
             </p>
           )}
 

@@ -26,8 +26,15 @@ interface SistemaTsSectionProps {
   onChange: (dati: DatiSistemaTs | undefined) => void
   dataEmissione: string
   errori?: SistemaTsErrori
-  /** Disattiva le modifiche quando la fattura è già stata trasmessa. */
+  /** Disattiva ogni modifica. */
   bloccato?: boolean
+  /**
+   * Impedisce di togliere la fattura dalla trasmissione, lasciando però
+   * modificabili i dati. Serve dopo un invio riuscito: il contenuto si può
+   * ancora correggere con una variazione, ma il documento esiste ormai presso
+   * il Sistema TS e non può sparire dall'archivio locale.
+   */
+  bloccaAttivazione?: boolean
 }
 
 /**
@@ -43,6 +50,7 @@ export function SistemaTsSection({
   dataEmissione,
   errori = {},
   bloccato = false,
+  bloccaAttivazione = false,
 }: SistemaTsSectionProps) {
   const soggetta = dati !== undefined
 
@@ -67,7 +75,7 @@ export function SistemaTsSection({
         <input
           type="checkbox"
           checked={soggetta}
-          disabled={bloccato}
+          disabled={bloccato || bloccaAttivazione}
           onChange={(e) => commuta(e.target.checked)}
           className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-teal-600 focus:ring-teal-500 cursor-pointer disabled:opacity-50"
         />

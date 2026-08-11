@@ -70,9 +70,11 @@ export function SistemaTsModal({ invoice, onClose, onAggiornato }: SistemaTsModa
   }, [onClose])
 
   const stato = sistemaTsService.statoPerFattura(fattura)
-  // Una fattura già accettata non si ritocca da qui: servirebbe una variazione,
-  // altrimenti l'archivio locale divergerebbe da quello trasmesso.
-  const bloccato = stato === 'inviata' || stato === 'variata'
+  // Dopo un invio riuscito i dati restano correggibili: e' esattamente il
+  // lavoro della variazione. Non si puo' invece togliere la fattura dalla
+  // trasmissione, perche' il documento presso il Sistema TS resterebbe li'
+  // mentre l'archivio locale se ne dimenticherebbe.
+  const trasmessa = stato === 'inviata' || stato === 'variata'
   const modificato = !uguali(dati, fattura.sistemaTs)
 
   function salva() {
@@ -204,7 +206,7 @@ export function SistemaTsModal({ invoice, onClose, onAggiornato }: SistemaTsModa
             dati={dati}
             onChange={setDati}
             dataEmissione={fattura.issueDate}
-            bloccato={bloccato}
+            bloccaAttivazione={trasmessa}
           />
 
           {/* Le modifiche non salvate non partono: si trasmette ciò che è
@@ -217,6 +219,16 @@ export function SistemaTsModal({ invoice, onClose, onAggiornato }: SistemaTsModa
                 vanno i dati registrati nell'archivio.
               </p>
             </div>
+          )}
+
+          {/* Salvare non basta: finché la variazione non parte, il ministero
+              conserva i valori vecchi. */}
+          {trasmessa && !modificato && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Il documento è già stato trasmesso. Correggendo questi dati, il Sistema TS
+              continuerà a conoscere i valori precedenti finché non trasmetti una
+              variazione.
+            </p>
           )}
 
           {/* Stato e invio, solo quando la fattura è davvero soggetta */}
@@ -240,8 +252,7 @@ export function SistemaTsModal({ invoice, onClose, onAggiornato }: SistemaTsModa
               type="button"
               onClick={salva}
               loading={salvataggio}
-              disabled={salvataggio || !modificato || bloccato}
-              title={bloccato ? 'La fattura è già stata trasmessa' : undefined}
+              disabled={salvataggio || !modificato}
             >
               <Check size={16} />
               Salva dati

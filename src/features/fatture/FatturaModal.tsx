@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
-import { X, AlertTriangle, FileDown, CheckCircle, Paperclip, Trash2 } from 'lucide-react'
+import { X, AlertTriangle, FileDown, CheckCircle, Lock, Paperclip, Trash2 } from 'lucide-react'
 import { clsx } from 'clsx'
 import type { Invoice, InvoiceInput, InvoiceType, InvoiceStatus, GeneratedInvoiceFile } from '../../types/fattura'
 import {
@@ -16,6 +16,7 @@ import { fatturaService } from '../../lib/fatturaService'
 import { pazienteService } from '../../lib/pazienteService'
 import { useImpostazioniStore } from '../../stores/impostazioniStore'
 import { PazienteOmonimoModal } from './PazienteOmonimoModal'
+import { sistemaTsService } from '../../lib/sistemaTsService'
 import type { DatiSistemaTs } from '../../types/sistemaTs'
 import type { Patient } from '../../types/paziente'
 
@@ -322,6 +323,20 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
 
   const canGenerate = !!templateBase64 && !isElettronica
 
+  /**
+   * Il Sistema TS identifica un documento con partita IVA, data di emissione,
+   * dispositivo e numero. Una volta trasmesso, cambiare numero o data qui
+   * significherebbe che una variazione successiva cercherebbe un documento
+   * inesistente — o, peggio, ne colpirebbe un altro con quella stessa
+   * identita'. Restano modificabili importo, bollo e assistito, che una
+   * variazione puo' correggere.
+   */
+  const identitaBloccata = useMemo(() => {
+    if (!invoice) return false
+    const stato = sistemaTsService.statoPerFattura(invoice)
+    return stato === 'inviata' || stato === 'variata'
+  }, [invoice])
+
   return (
     <>
       <div
@@ -343,6 +358,17 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
 
           <form onSubmit={handleSubmit} className="p-6 space-y-5">
 
+            {identitaBloccata && (
+              <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
+                <Lock size={16} className="text-gray-400 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-gray-600 dark:text-gray-300">
+                  Fattura già trasmessa al Sistema TS. Tipo, numero e data di emissione
+                  non sono più modificabili: sono ciò con cui il ministero identifica il
+                  documento. Per cambiarli servono una cancellazione e un nuovo invio.
+                </p>
+              </div>
+            )}
+
             {/* Tipo fattura — sempre visibile */}
             <div className="grid grid-cols-2 gap-4">
               <Select
@@ -350,6 +376,7 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
                 required
                 options={INVOICE_TYPE_OPTIONS}
                 value={form.invoiceType}
+                disabled={identitaBloccata}
                 onChange={(e) => {
                   const tipo = e.target.value as InvoiceType | ''
                   setForm((prev) => ({
@@ -371,6 +398,7 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
                 required
                 placeholder="Es. 1/2026"
                 value={form.invoiceNumber}
+                disabled={identitaBloccata}
                 onChange={(e) => set('invoiceNumber', e.target.value)}
                 error={errors.invoiceNumber}
               />
@@ -396,6 +424,7 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
                     type="date"
                     required
                     value={form.issueDate}
+                    disabled={identitaBloccata}
                     onChange={(e) => set('issueDate', e.target.value)}
                     error={errors.issueDate}
                   />
@@ -460,6 +489,7 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
                     type="date"
                     required
                     value={form.issueDate}
+                    disabled={identitaBloccata}
                     onChange={(e) => set('issueDate', e.target.value)}
                     error={errors.issueDate}
                   />

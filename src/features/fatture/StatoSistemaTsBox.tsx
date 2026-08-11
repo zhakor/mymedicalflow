@@ -27,6 +27,17 @@ const COLORE_STATO: Record<StatoSistemaTS, 'success' | 'warning' | 'muted' | 'in
   cancellata: 'muted',
 }
 
+/**
+ * Sul pulsante serve il verbo, non il nome dell'operazione: dice cosa succede
+ * premendolo. Il nome resta nello storico, dove classifica un evento passato.
+ */
+const ETICHETTA_AZIONE: Record<OperazioneTs, string> = {
+  inserimento: 'Invia al Sistema TS',
+  variazione: 'Trasmetti variazione',
+  cancellazione: 'Cancella dal Sistema TS',
+  rimborso: 'Trasmetti rimborso',
+}
+
 const BADGE_PER_CATEGORIA: Record<CategoriaMessaggioTs, 'success' | 'warning' | 'muted' | 'info' | 'error'> = {
   errore: 'error',
   avviso: 'warning',
@@ -218,7 +229,7 @@ export function StatoSistemaTsBox({ invoice, onAggiornato }: StatoSistemaTsBoxPr
             title={!validazione.valido ? 'Completa i dati mancanti' : undefined}
           >
             {op === 'inserimento' ? <Send size={15} /> : <Upload size={15} />}
-            {op === 'inserimento' ? 'Invia al Sistema TS' : OPERAZIONE_TS_LABELS[op]}
+            {ETICHETTA_AZIONE[op]}
           </Button>
         ))}
       </div>

@@ -47,13 +47,32 @@ fn errore_trasporto(e: &reqwest::Error) -> ErroreSistemaTs {
     }
 }
 
+/// Certificato della CA che firma il server di **collaudo**.
+///
+/// L'ambiente di test usa `CN=Sogei Certification Authority Test`, una CA
+/// privata assente dagli elenchi pubblici, e il server non invia l'intermedio:
+/// senza questa radice l'handshake fallisce con "untrusted root".
+///
+/// Scaricato dalla directory ufficiale della CA, indicata dal certificato del
+/// server stesso: `ldap://cads.finanze.it/CN=Sogei Certification Authority
+/// Test,O=Sogei,C=IT`, attributo `cACertificate`.
+///
+/// La **produzione** non ne ha bisogno: il suo certificato è emesso da Sectigo,
+/// una CA pubblica già presente negli elenchi standard.
+const CA_COLLAUDO: &[u8] = include_bytes!("../../resources/sistema_ts/SogeiCaTest.cer");
+
 /// Invia la richiesta all'indirizzo indicato e interpreta la risposta.
+///
+/// `radice_collaudo` aggiunge la CA di Sogei alle radici fidate. È
+/// un'**aggiunta**, non una deroga: la verifica del certificato resta attiva e
+/// gli altri host continuano a essere validati con gli elenchi pubblici.
 fn invia_a(
     url: &str,
     operazione: Operazione,
     documento: &DocumentoSpesa,
     credenziali: &Credenziali,
     timeout_secondi: u64,
+    radice_collaudo: bool,
 ) -> Result<RispostaDocumentoSpesa, ErroreSistemaTs> {
     let corpo = xml::componi_richiesta(
         operazione,
@@ -62,11 +81,21 @@ fn invia_a(
         &credenziali.cf_proprietario,
     )?;
 
-    let cliente = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(timeout_secondi))
+    let mut costruttore = reqwest::blocking::Client::builder()
         // Nessuna deroga sulla verifica del certificato del server
-        .build()
-        .map_err(|e| errore_trasporto(&e))?;
+        .timeout(Duration::from_secs(timeout_secondi));
+
+    if radice_collaudo {
+        let ca = reqwest::Certificate::from_pem(CA_COLLAUDO).map_err(|e| {
+            log::error!("[sistema_ts] CA di collaudo non leggibile: {e}");
+            ErroreSistemaTs::configurazione(
+                "Il certificato della CA di collaudo non è utilizzabile.",
+            )
+        })?;
+        costruttore = costruttore.add_root_certificate(ca);
+    }
+
+    let cliente = costruttore.build().map_err(|e| errore_trasporto(&e))?;
 
     let risposta = cliente
         .post(url)
@@ -126,7 +155,17 @@ pub fn invia(
         documento.id_spesa.num_documento
     );
 
-    invia_a(url, operazione, documento, credenziali, config.timeout_secondi)
+    // La CA privata serve solo al collaudo: gli altri ambienti usano gli
+    // elenchi pubblici, e il locale non fa nemmeno TLS.
+    let radice_collaudo = config.ambiente == Ambiente::Test;
+    invia_a(
+        url,
+        operazione,
+        documento,
+        credenziali,
+        config.timeout_secondi,
+        radice_collaudo,
+    )
 }
 
 /// Vero se l'ambiente contatta davvero il Sistema TS.
@@ -211,7 +250,7 @@ mod tests {
     #[test]
     fn invia_con_autenticazione_preventiva_e_soapaction() {
         let (url, richieste) = server_finto(RISPOSTA_OK);
-        let esito = invia_a(&url, Operazione::Inserimento, &documento(), &credenziali(), 10).unwrap();
+        let esito = invia_a(&url, Operazione::Inserimento, &documento(), &credenziali(), 10, false).unwrap();
         assert!(esito.accettata());
         assert_eq!(esito.protocollo.as_deref(), Some("99260526656625148"));
 
@@ -238,7 +277,7 @@ mod tests {
     #[test]
     fn la_richiesta_non_contiene_dati_in_chiaro() {
         let (url, richieste) = server_finto(RISPOSTA_OK);
-        let _ = invia_a(&url, Operazione::Inserimento, &documento(), &credenziali(), 10);
+        let _ = invia_a(&url, Operazione::Inserimento, &documento(), &credenziali(), 10, false);
 
         let richiesta = richieste.recv_timeout(Duration::from_secs(5)).unwrap();
         assert!(!richiesta.contains("RSSMRA80A01H501U"), "codice fiscale in chiaro");
@@ -254,7 +293,7 @@ mod tests {
         let risposta: &'static str = Box::leak(risposta_soap(corpo).into_boxed_str());
         let (url, _) = server_finto(risposta);
 
-        let esito = invia_a(&url, Operazione::Inserimento, &documento(), &credenziali(), 10).unwrap();
+        let esito = invia_a(&url, Operazione::Inserimento, &documento(), &credenziali(), 10, false).unwrap();
         assert!(!esito.accettata());
         assert_eq!(esito.primo_errore().unwrap().codice, "C107");
     }
@@ -271,7 +310,7 @@ mod tests {
         );
         let (url, _) = server_finto(risposta);
 
-        let errore = invia_a(&url, Operazione::Inserimento, &documento(), &credenziali(), 10)
+        let errore = invia_a(&url, Operazione::Inserimento, &documento(), &credenziali(), 10, false)
             .unwrap_err();
         // Un 500 e' comunque una risposta del server: l'esito resta incerto
         assert!(errore.esito_incerto(), "un 500 deve lasciare l'esito incerto");
@@ -286,7 +325,7 @@ mod tests {
             );
             let (url, _) = server_finto(risposta);
             let errore =
-                invia_a(&url, Operazione::Inserimento, &documento(), &credenziali(), 10).unwrap_err();
+                invia_a(&url, Operazione::Inserimento, &documento(), &credenziali(), 10, false).unwrap_err();
             assert!(
                 matches!(errore, ErroreSistemaTs::Autenticazione { .. }),
                 "atteso errore di autenticazione per {stato}"
@@ -301,7 +340,7 @@ mod tests {
             "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
         let (url, _) = server_finto(risposta);
         let errore =
-            invia_a(&url, Operazione::Inserimento, &documento(), &credenziali(), 10).unwrap_err();
+            invia_a(&url, Operazione::Inserimento, &documento(), &credenziali(), 10, false).unwrap_err();
         assert!(errore.esito_incerto());
         assert!(!errore.ritentabile(), "non si ritenta alla cieca dopo un 5xx");
     }
@@ -312,7 +351,7 @@ mod tests {
             risposta_soap("<html><body>Gateway timeout</body></html>").into_boxed_str(),
         );
         let (url, _) = server_finto(risposta);
-        assert!(invia_a(&url, Operazione::Inserimento, &documento(), &credenziali(), 10).is_err());
+        assert!(invia_a(&url, Operazione::Inserimento, &documento(), &credenziali(), 10, false).is_err());
     }
 
     #[test]
@@ -329,7 +368,7 @@ mod tests {
 
         let url = format!("http://127.0.0.1:{porta}/");
         let errore =
-            invia_a(&url, Operazione::Inserimento, &documento(), &credenziali(), 1).unwrap_err();
+            invia_a(&url, Operazione::Inserimento, &documento(), &credenziali(), 1, false).unwrap_err();
         assert!(errore.esito_incerto(), "il timeout deve lasciare l'esito incerto");
         assert!(!errore.ritentabile());
     }
@@ -395,17 +434,33 @@ mod tests {
         let mut documento = documento();
         documento.id_spesa.p_iva = da_ambiente("STS_PIVA");
         documento.id_spesa.num_documento = format!("T{progressivo}");
-        documento.cf_cittadino = None;
-        documento.flag_opposizione = Some("1".into());
+
+        // Con `STS_CF_ASSISTITO` si prova la variante con codice fiscale e
+        // opposizione a 0; senza, si trasmette in opposizione e nessun dato
+        // del cittadino lascia il computer.
+        match std::env::var("STS_CF_ASSISTITO").ok().filter(|c| !c.trim().is_empty()) {
+            Some(cf) => {
+                documento.cf_cittadino = Some(cf);
+                documento.flag_opposizione = Some("0".into());
+            }
+            None => {
+                documento.cf_cittadino = None;
+                documento.flag_opposizione = Some("1".into());
+            }
+        }
 
         let url = Ambiente::Test.endpoint().expect("endpoint di collaudo assente");
         println!("\n=== INVIO AL COLLAUDO ===");
         println!("ambiente : {}", Ambiente::Test);
         println!("endpoint : {url}");
         println!("documento: {}", documento.id_spesa.num_documento);
-        println!("opposizione: 1 (nessun codice fiscale trasmesso)\n");
+        println!(
+            "opposizione: {} — codice fiscale {}\n",
+            documento.flag_opposizione.as_deref().unwrap_or("-"),
+            if documento.cf_cittadino.is_some() { "trasmesso (fittizio)" } else { "non trasmesso" }
+        );
 
-        match invia_a(url, Operazione::Inserimento, &documento, &credenziali, 60) {
+        match invia_a(url, Operazione::Inserimento, &documento, &credenziali, 60, true) {
             Ok(risposta) => {
                 println!("esitoChiamata: {}", risposta.esito_chiamata);
                 println!("protocollo   : {:?}", risposta.protocollo);

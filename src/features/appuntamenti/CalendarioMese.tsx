@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { clsx } from 'clsx'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import {
@@ -12,6 +12,7 @@ import {
   stessoMese,
 } from '../../lib/agendaService'
 import { servizioService } from '../../lib/servizioService'
+import { accettaRilascio, idTrascinato } from './trascinamento'
 import type { Appointment } from '../../types/appuntamento'
 
 interface CalendarioMeseProps {
@@ -22,6 +23,8 @@ interface CalendarioMeseProps {
   selezionato: string
   onSelezione: (chiave: string) => void
   onCambioMese: (anno: number, mese: number) => void
+  /** Rilascio su un giorno: sposta la data mantenendo l'orario. */
+  onSpostaAlGiorno: (id: string, giorno: string) => void
 }
 
 /** Quante anteprime stanno in una casella prima di riassumere con "+N". */
@@ -34,7 +37,10 @@ export function CalendarioMese({
   selezionato,
   onSelezione,
   onCambioMese,
+  onSpostaAlGiorno,
 }: CalendarioMeseProps) {
+  /** Casella sotto il puntatore durante un trascinamento. */
+  const [bersaglio, setBersaglio] = useState<string | null>(null)
   const giorni = useMemo(() => grigliaMese(anno, mese), [anno, mese])
   const oggiChiave = oggi()
 
@@ -119,13 +125,29 @@ export function CalendarioMese({
               key={chiave}
               type="button"
               onClick={() => onSelezione(chiave)}
+              // Trascinare su un altro giorno sposta la data e lascia l'orario:
+              // di solito si rimanda una seduta, non la si riprogramma da capo.
+              onDragOver={(e) => {
+                if (accettaRilascio(e)) setBersaglio(chiave)
+              }}
+              onDragLeave={() =>
+                setBersaglio((precedente) => (precedente === chiave ? null : precedente))
+              }
+              onDrop={(e) => {
+                e.preventDefault()
+                setBersaglio(null)
+                const id = idTrascinato(e)
+                if (id) onSpostaAlGiorno(id, chiave)
+              }}
               aria-pressed={eSelezionato}
               className={clsx(
                 'relative min-h-[84px] sm:min-h-[96px] p-1.5 text-left align-top border-b border-r border-gray-100 dark:border-gray-800 transition-colors',
                 'focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-500',
-                eSelezionato
-                  ? 'bg-teal-50 dark:bg-teal-900/25'
-                  : 'hover:bg-gray-50 dark:hover:bg-gray-800/50',
+                bersaglio === chiave
+                  ? 'bg-teal-100 ring-2 ring-inset ring-teal-500 dark:bg-teal-900/50'
+                  : eSelezionato
+                    ? 'bg-teal-50 dark:bg-teal-900/25'
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-800/50',
                 // I giorni fuori dal mese restano visibili ma arretrano
                 !nelMese && 'bg-gray-50/60 dark:bg-gray-950/40',
                 nelMese && eWeekend(chiave) && !eSelezionato && 'bg-gray-50/40 dark:bg-gray-900/60',

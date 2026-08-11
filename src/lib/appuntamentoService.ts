@@ -105,6 +105,28 @@ export const appuntamentoService = {
     return updated
   },
 
+  /**
+   * Sposta un appuntamento nel tempo, lasciando intatto tutto il resto.
+   *
+   * Il trascinamento cambia solo quando: ricostruire l'intero appuntamento
+   * per muoverlo di mezz'ora rischierebbe di perdere per strada campi che
+   * l'interfaccia non conosce.
+   */
+  sposta(id: string, appointmentDate: string, appointmentTime: string): Appointment | null {
+    const all = getAll()
+    const index = all.findIndex((a) => a.id === id)
+    if (index === -1) return null
+    const spostato: Appointment = {
+      ...all[index],
+      appointmentDate,
+      appointmentTime,
+      updatedAt: new Date().toISOString(),
+    }
+    all[index] = spostato
+    saveAll(all)
+    return spostato
+  },
+
   delete(id: string): void {
     const all = getAll().filter((a) => a.id !== id)
     saveAll(all)

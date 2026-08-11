@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button } from '../../components/ui/Button'
 import { useAppuntamentoStore } from '../../stores/appuntamentoStore'
 import { appuntamentoService } from '../../lib/appuntamentoService'
-import { dataDaChiave, oggi } from '../../lib/agendaService'
+import { dataDaChiave, etichettaGiorno, oggi, verificaSlot } from '../../lib/agendaService'
 import { AppuntamentiFilters } from './AppuntamentiFilters'
 import { AppuntamentiTable } from './AppuntamentiTable'
 import { AppuntamentoModal } from './AppuntamentoModal'
@@ -29,6 +29,7 @@ export function AppuntamentiPage() {
     createAppointment,
     updateAppointment,
     deleteAppointment,
+    spostaAppointment,
     showFeedback,
   } = useAppuntamentoStore()
 
@@ -80,6 +81,38 @@ export function AppuntamentiPage() {
     setEditingAppointment(null)
     setOraProposta(ora)
     setModalOpen(true)
+  }
+
+  /**
+   * Sposta un appuntamento trascinato, se la destinazione è davvero libera.
+   *
+   * Il controllo sta qui e non nel componente che riceve il rilascio: il
+   * trascinamento è solo un modo di indicare l'orario, e non deve poter
+   * scavalcare la regola che vale anche nel form.
+   */
+  function spostaSeLibero(id: string, data: string, ora: string) {
+    const appuntamento = tuttiAppuntamenti.find((a) => a.id === id)
+    if (!appuntamento) return
+    if (appuntamento.appointmentDate === data && appuntamento.appointmentTime === ora) return
+
+    const esito = verificaSlot(tuttiAppuntamenti, data, ora, id)
+    if (esito.identico) {
+      showFeedback(
+        `Le ${ora} sono già occupate da ${esito.identico.patientLastName}.`,
+        'error',
+      )
+      return
+    }
+    spostaAppointment(id, data, ora)
+
+    const cambiaGiorno = appuntamento.appointmentDate !== data
+    const cambiaOra = appuntamento.appointmentTime !== ora
+    const quando = cambiaGiorno && cambiaOra
+      ? `a ${etichettaGiorno(data)}, ore ${ora}`
+      : cambiaGiorno
+        ? `a ${etichettaGiorno(data)}`
+        : `alle ${ora}`
+    showFeedback(`${appuntamento.patientLastName} spostato ${quando}.`)
   }
 
   function handleSelezioneGiorno(chiave: string) {
@@ -196,6 +229,12 @@ export function AppuntamentiPage() {
             selezionato={giornoSelezionato}
             onSelezione={handleSelezioneGiorno}
             onCambioMese={(anno, mese) => setMeseVisibile({ anno, mese })}
+            onSpostaAlGiorno={(id, giorno) => {
+              // Cambia il giorno, l'orario resta: si rimanda una seduta, non
+              // la si riprogramma da capo.
+              const a = tuttiAppuntamenti.find((x) => x.id === id)
+              if (a) spostaSeLibero(id, giorno, a.appointmentTime)
+            }}
           />
           <GiornataSlot
             appuntamenti={tuttiAppuntamenti}
@@ -203,6 +242,7 @@ export function AppuntamentiPage() {
             onNuovo={handleNuovoDaSlot}
             onModifica={handleEdit}
             onElimina={handleDeleteRequest}
+            onSposta={(id, ora) => spostaSeLibero(id, giornoSelezionato, ora)}
           />
         </div>
       ) : (

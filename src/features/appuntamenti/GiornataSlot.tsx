@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { clsx } from 'clsx'
 import { Clock, Pencil, Plus, Trash2, TriangleAlert } from 'lucide-react'
 import {
@@ -10,6 +10,7 @@ import {
   slotDelGiorno,
 } from '../../lib/agendaService'
 import { servizioService } from '../../lib/servizioService'
+import { accettaRilascio, idTrascinato, iniziaTrascinamento } from './trascinamento'
 import type { Appointment } from '../../types/appuntamento'
 
 interface GiornataSlotProps {
@@ -18,6 +19,8 @@ interface GiornataSlotProps {
   onNuovo: (ora: string) => void
   onModifica: (a: Appointment) => void
   onElimina: (a: Appointment) => void
+  /** Rilascio del trascinamento su un orario della stessa giornata. */
+  onSposta: (id: string, ora: string) => void
 }
 
 /** Riga di un appuntamento, condivisa fra slot orari e fuori orario. */
@@ -30,14 +33,24 @@ function RigaAppuntamento({
   onModifica: (a: Appointment) => void
   onElimina: (a: Appointment) => void
 }) {
+  const [inMovimento, setInMovimento] = useState(false)
   const classi = servizioService.classiDi(appuntamento)
   const durata = servizioService.durataDi(appuntamento)
 
   return (
     <div
+      draggable
+      onDragStart={(e) => {
+        iniziaTrascinamento(e, appuntamento.id)
+        setInMovimento(true)
+      }}
+      onDragEnd={() => setInMovimento(false)}
+      title="Trascina per spostare l'orario"
       className={clsx(
-        'group flex items-start gap-3 rounded-xl border px-3 py-2.5 transition-colors',
+        'group flex cursor-grab items-start gap-3 rounded-xl border px-3 py-2.5 transition-all active:cursor-grabbing',
         classi.blocco,
+        // Mentre viaggia resta visibile ma arretra, così si segue il puntatore
+        inMovimento && 'opacity-40',
       )}
     >
       <div className="min-w-0 flex-1">
@@ -82,7 +95,10 @@ export function GiornataSlot({
   onNuovo,
   onModifica,
   onElimina,
+  onSposta,
 }: GiornataSlotProps) {
+  /** Slot sotto il puntatore durante un trascinamento. */
+  const [bersaglio, setBersaglio] = useState<string | null>(null)
   const slot = useMemo(() => slotDelGiorno(appuntamenti, giorno), [appuntamenti, giorno])
   const fuori = useMemo(() => fuoriOrario(appuntamenti, giorno), [appuntamenti, giorno])
   const totale = useMemo(
@@ -122,11 +138,36 @@ export function GiornataSlot({
                   <button
                     type="button"
                     onClick={() => onNuovo(s.ora)}
-                    className="group flex w-full items-center gap-2 rounded-xl border border-dashed border-gray-200 px-3 py-2 text-left text-xs text-gray-400 transition-colors hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700 dark:border-gray-800 dark:hover:border-teal-700 dark:hover:bg-teal-900/20 dark:hover:text-teal-400"
+                    // Solo gli slot liberi accolgono un rilascio: su uno già
+                    // occupato lo spostamento creerebbe la sovrapposizione che
+                    // il resto della schermata serve a evitare.
+                    onDragOver={(e) => {
+                      if (accettaRilascio(e)) setBersaglio(s.ora)
+                    }}
+                    onDragLeave={() =>
+                      setBersaglio((precedente) => (precedente === s.ora ? null : precedente))
+                    }
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      setBersaglio(null)
+                      const id = idTrascinato(e)
+                      if (id) onSposta(id, s.ora)
+                    }}
+                    className={clsx(
+                      'group flex w-full items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-left text-xs transition-colors',
+                      bersaglio === s.ora
+                        ? 'border-teal-500 bg-teal-100 text-teal-800 dark:border-teal-500 dark:bg-teal-900/40 dark:text-teal-300'
+                        : 'border-gray-200 text-gray-400 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700 dark:border-gray-800 dark:hover:border-teal-700 dark:hover:bg-teal-900/20 dark:hover:text-teal-400',
+                    )}
                   >
                     <Plus size={14} className="flex-shrink-0" />
-                    <span className="opacity-0 transition-opacity group-hover:opacity-100">
-                      Fissa un appuntamento
+                    <span
+                      className={clsx(
+                        'transition-opacity',
+                        bersaglio === s.ora ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+                      )}
+                    >
+                      {bersaglio === s.ora ? `Sposta alle ${s.ora}` : 'Fissa un appuntamento'}
                     </span>
                   </button>
                 ) : (

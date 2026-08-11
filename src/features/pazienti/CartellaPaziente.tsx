@@ -21,7 +21,7 @@ import { fatturaService } from '../../lib/fatturaService'
 import { appuntamentoService } from '../../lib/appuntamentoService'
 import { downloadDocx } from '../../lib/documentService'
 import { INVOICE_STATUS_LABELS, INVOICE_TYPE_LABELS } from '../../types/fattura'
-import { APPOINTMENT_TYPE_LABELS } from '../../types/appuntamento'
+import { servizioService } from '../../lib/servizioService'
 import type { Invoice } from '../../types/fattura'
 
 interface CartellaPazienteProps {
@@ -292,8 +292,8 @@ export function CartellaPaziente({ patient, onBack }: CartellaPazienteProps) {
                       {a.appointmentTime}
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap">
-                      <Badge variant={a.appointmentType === 'valutazione' ? 'info' : 'success'}>
-                        {APPOINTMENT_TYPE_LABELS[a.appointmentType]}
+                      <Badge variant="default">
+                        {servizioService.nomeDi(a)}
                       </Badge>
                     </td>
                     <td className="px-2 py-2 text-gray-600 dark:text-gray-400 max-w-[200px] truncate">

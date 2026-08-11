@@ -10,12 +10,14 @@
  * probabili, non a decidere al posto di chi la usa.
  */
 
+import { servizioService } from './servizioService'
 import type { Appointment } from '../types/appuntamento'
+import { DURATA_DI_RIPIEGO } from '../types/servizio'
 
 // ─── Convenzioni della giornata lavorativa ────────────────────────────────────
 
-/** Durata presunta di una seduta, usata solo per stimare le sovrapposizioni. */
-export const DURATA_PRESUNTA_MINUTI = 45
+/** Durata usata quando il servizio non è noto. Vedi `types/servizio`. */
+export const DURATA_PRESUNTA_MINUTI = DURATA_DI_RIPIEGO
 
 export const ORA_APERTURA = 8
 export const ORA_CHIUSURA = 20
@@ -191,8 +193,9 @@ export interface EsitoSlot {
   /** Un altro appuntamento alla stessa ora esatta: quasi certamente un doppione. */
   identico: Appointment | null
   /**
-   * Appuntamenti abbastanza vicini da sovrapporsi, data la durata presunta.
-   * È una stima, non un dato: viene segnalata, non impedita.
+   * Appuntamenti che si accavallano davvero, secondo la durata del rispettivo
+   * servizio. Non si impediscono: la seconda seduta può cominciare in ritardo,
+   * o due prestazioni possono convivere. Si dichiarano.
    */
   vicini: Appointment[]
 }
@@ -210,6 +213,8 @@ export function verificaSlot(
   data: string,
   ora: string,
   escludiId?: string,
+  /** Durata di ciò che si sta collocando; senza, si usa il ripiego. */
+  durataMinuti: number = DURATA_PRESUNTA_MINUTI,
 ): EsitoSlot {
   const minuti = inMinuti(ora)
   if (!data || minuti === null) return SLOT_LIBERO
@@ -221,12 +226,15 @@ export function verificaSlot(
   const identico =
     candidati.find((a) => inMinuti(a.appointmentTime) === minuti) ?? null
 
+  const fine = minuti + durataMinuti
   const vicini = candidati
     .filter((a) => {
-      const altro = inMinuti(a.appointmentTime)
-      if (altro === null || altro === minuti) return false
-      // Due intervalli di durata presunta che si accavallano
-      return Math.abs(altro - minuti) < DURATA_PRESUNTA_MINUTI
+      const altroInizio = inMinuti(a.appointmentTime)
+      if (altroInizio === null || altroInizio === minuti) return false
+      // Sovrapposizione vera fra i due intervalli, ciascuno con la durata del
+      // proprio servizio: [inizio, fine) contro [altroInizio, altroFine)
+      const altroFine = altroInizio + servizioService.durataDi(a)
+      return altroInizio < fine && minuti < altroFine
     })
     .sort(ordinaPerOrario)
 

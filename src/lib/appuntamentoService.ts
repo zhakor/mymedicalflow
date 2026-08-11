@@ -1,4 +1,6 @@
 import { storageService } from './storageService'
+import { servizioService } from './servizioService'
+import { STATO_PRESENZA_DEFAULT } from '../types/appuntamento'
 import type {
   Appointment,
   AppointmentInput,
@@ -29,7 +31,8 @@ function matchesFilters(a: Appointment, filters: AppointmentFilters): boolean {
   if (!a) return false
   if (filters.dateFrom && a.appointmentDate < filters.dateFrom) return false
   if (filters.dateTo && a.appointmentDate > filters.dateTo) return false
-  if (filters.appointmentType && a.appointmentType !== filters.appointmentType) return false
+  if (filters.serviceId && servizioService.idServizioDi(a) !== filters.serviceId) return false
+  if (filters.presenza && (a.presenza ?? STATO_PRESENZA_DEFAULT) !== filters.presenza) return false
   if (
     filters.patientLastName &&
     !a.patientLastName?.toLowerCase().includes(filters.patientLastName.toLowerCase())

@@ -15,7 +15,8 @@ const DEFAULT_PAGE_SIZE = 10
 export const EMPTY_APPOINTMENT_FILTERS: AppointmentFilters = {
   dateFrom: '',
   dateTo: '',
-  appointmentType: '',
+  serviceId: '',
+  presenza: '',
   patientLastName: '',
 }
 

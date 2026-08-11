@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { Button } from '../../components/ui/Button'
 import { AlertTriangle, X } from 'lucide-react'
 import type { Appointment } from '../../types/appuntamento'
-import { APPOINTMENT_TYPE_LABELS } from '../../types/appuntamento'
+import { servizioService } from '../../lib/servizioService'
 
 interface DeleteAppuntamentoConfirmProps {
   appointment: Appointment
@@ -47,7 +47,7 @@ export function DeleteAppuntamentoConfirm({
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Sei sicuro di voler eliminare l&apos;appuntamento{' '}
               <span className="font-medium text-gray-900 dark:text-white">
-                {APPOINTMENT_TYPE_LABELS[appointment.appointmentType]}
+                {servizioService.nomeDi(appointment)}
               </span>{' '}
               del{' '}
               <span className="font-medium text-gray-900 dark:text-white">

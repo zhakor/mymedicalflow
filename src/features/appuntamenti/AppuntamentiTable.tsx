@@ -1,7 +1,7 @@
 import { Card } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import type { Appointment, PaginatedAppointments } from '../../types/appuntamento'
-import { APPOINTMENT_TYPE_LABELS } from '../../types/appuntamento'
+import { servizioService } from '../../lib/servizioService'
 import { Calendar, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -86,8 +86,8 @@ export function AppuntamentiTable({
                   {a.patientFirstName}
                 </td>
                 <td className="px-3 py-2.5 whitespace-nowrap">
-                  <Badge variant={a.appointmentType === 'valutazione' ? 'info' : 'success'}>
-                    {APPOINTMENT_TYPE_LABELS[a.appointmentType]}
+                  <Badge variant="default">
+                    {servizioService.nomeDi(a)}
                   </Badge>
                 </td>
                 <td className="px-3 py-2.5 text-gray-700 dark:text-gray-300 whitespace-nowrap">

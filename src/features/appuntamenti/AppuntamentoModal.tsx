@@ -8,8 +8,9 @@ import { appuntamentoService } from '../../lib/appuntamentoService'
 import { oggi, verificaSlot } from '../../lib/agendaService'
 import type { EsitoSlot } from '../../lib/agendaService'
 import type { Patient } from '../../types/paziente'
-import type { Appointment, AppointmentInput, AppointmentType } from '../../types/appuntamento'
-import { APPOINTMENT_TYPE_LABELS, APPOINTMENT_TYPE_OPTIONS } from '../../types/appuntamento'
+import { servizioService } from '../../lib/servizioService'
+import type { Appointment, AppointmentInput, StatoPresenza } from '../../types/appuntamento'
+import { STATO_PRESENZA_DEFAULT, STATO_PRESENZA_LABELS } from '../../types/appuntamento'
 import {
   validateAppointment,
   hasAppointmentErrors,
@@ -23,7 +24,8 @@ interface FormState {
   patientFirstName: string
   patientLastName: string
   patientId: string
-  appointmentType: string
+  serviceId: string
+  presenza: StatoPresenza
   appointmentDate: string
   appointmentTime: string
   description: string
@@ -33,7 +35,8 @@ const EMPTY_FORM: FormState = {
   patientFirstName: '',
   patientLastName: '',
   patientId: '',
-  appointmentType: '',
+  serviceId: '',
+  presenza: STATO_PRESENZA_DEFAULT,
   appointmentDate: '',
   appointmentTime: '',
   description: '',
@@ -44,7 +47,9 @@ function appointmentToForm(a: Appointment): FormState {
     patientFirstName: a.patientFirstName,
     patientLastName: a.patientLastName,
     patientId: a.patientId,
-    appointmentType: a.appointmentType,
+    // Gli appuntamenti salvati prima portano il tipo storico, non il servizio
+    serviceId: servizioService.idServizioDi(a) ?? '',
+    presenza: a.presenza ?? STATO_PRESENZA_DEFAULT,
     appointmentDate: a.appointmentDate,
     appointmentTime: a.appointmentTime,
     description: a.description ?? '',
@@ -68,7 +73,7 @@ function StatoSlot({ slot }: { slot: EsitoSlot }) {
         <p className="text-xs text-red-700 dark:text-red-400">
           <span className="font-semibold">Orario già occupato</span> da{' '}
           {slot.identico.patientLastName} {slot.identico.patientFirstName} (
-          {APPOINTMENT_TYPE_LABELS[slot.identico.appointmentType].toLowerCase()}). Scegli
+          {servizioService.nomeDi(slot.identico).toLowerCase()}). Scegli
           un altro orario.
         </p>
       </div>
@@ -145,8 +150,10 @@ export function AppuntamentoModal({
         form.appointmentDate,
         form.appointmentTime,
         appointment?.id,
+        // La durata del servizio scelto decide quanto spazio serve davvero
+        servizioService.getById(form.serviceId)?.durataMinuti,
       ),
-    [form.appointmentDate, form.appointmentTime, appointment?.id],
+    [form.appointmentDate, form.appointmentTime, form.serviceId, appointment?.id],
   )
 
   // Ricerca paziente / omonimi
@@ -229,7 +236,8 @@ export function AppuntamentoModal({
       patientId: form.patientId,
       patientFirstName: form.patientFirstName.trim(),
       patientLastName: form.patientLastName.trim(),
-      appointmentType: form.appointmentType as AppointmentType,
+      serviceId: form.serviceId,
+      presenza: form.presenza,
       appointmentDate: form.appointmentDate,
       appointmentTime: form.appointmentTime,
       description: form.description.trim() || undefined,
@@ -261,10 +269,23 @@ export function AppuntamentoModal({
     }
   }
 
-  const TYPE_OPTIONS = APPOINTMENT_TYPE_OPTIONS.map((o) => ({
-    value: o.value,
-    label: o.label,
-  }))
+  // Solo i servizi attivi si propongono, ma quello già scelto resta in elenco:
+  // modificando un vecchio appuntamento non deve sparire da sotto il cursore.
+  const OPZIONI_SERVIZIO = useMemo(() => {
+    const attivi = servizioService.getAttivi()
+    const corrente = form.serviceId ? servizioService.getById(form.serviceId) : null
+    const elenco = corrente && !attivi.some((s) => s.id === corrente.id)
+      ? [...attivi, corrente]
+      : attivi
+    return elenco.map((s) => ({
+      value: s.id,
+      label: `${s.nome} · ${s.durataMinuti} min`,
+    }))
+  }, [form.serviceId])
+
+  const OPZIONI_PRESENZA = (
+    Object.keys(STATO_PRESENZA_LABELS) as StatoPresenza[]
+  ).map((v) => ({ value: v, label: STATO_PRESENZA_LABELS[v] }))
 
   return (
     <>
@@ -339,12 +360,17 @@ export function AppuntamentoModal({
                 </p>
                 <div className="grid grid-cols-1 gap-4">
                   <Select
-                    label="Tipo appuntamento"
+                    label="Servizio"
                     required
-                    options={TYPE_OPTIONS}
-                    value={form.appointmentType}
-                    onChange={(e) => setField('appointmentType', e.target.value)}
-                    error={errors.appointmentType}
+                    options={OPZIONI_SERVIZIO}
+                    value={form.serviceId}
+                    onChange={(e) => setField('serviceId', e.target.value)}
+                    error={errors.serviceId}
+                    placeholder={
+                      OPZIONI_SERVIZIO.length
+                        ? 'Seleziona...'
+                        : 'Nessun servizio configurato'
+                    }
                   />
                   <div className="grid grid-cols-2 gap-4">
                     <Input
@@ -369,6 +395,15 @@ export function AppuntamentoModal({
                   {form.appointmentDate && form.appointmentTime && (
                     <StatoSlot slot={slot} />
                   )}
+
+                  {/* La presenza distingue ciò che è stato svolto da ciò che
+                      era solo in programma: è quanto si confronta con la fattura. */}
+                  <Select
+                    label="Presenza"
+                    options={OPZIONI_PRESENZA}
+                    value={form.presenza}
+                    onChange={(e) => setField('presenza', e.target.value)}
+                  />
                 </div>
               </div>
 

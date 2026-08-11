@@ -9,7 +9,7 @@ import {
   fuoriOrario,
   slotDelGiorno,
 } from '../../lib/agendaService'
-import { APPOINTMENT_TYPE_LABELS } from '../../types/appuntamento'
+import { servizioService } from '../../lib/servizioService'
 import type { Appointment } from '../../types/appuntamento'
 
 interface GiornataSlotProps {
@@ -30,30 +30,22 @@ function RigaAppuntamento({
   onModifica: (a: Appointment) => void
   onElimina: (a: Appointment) => void
 }) {
-  const valutazione = appuntamento.appointmentType === 'valutazione'
+  const classi = servizioService.classiDi(appuntamento)
+  const durata = servizioService.durataDi(appuntamento)
 
   return (
     <div
       className={clsx(
         'group flex items-start gap-3 rounded-xl border px-3 py-2.5 transition-colors',
-        valutazione
-          ? 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-900/20'
-          : 'border-teal-200 bg-teal-50 dark:border-teal-900 dark:bg-teal-900/20',
+        classi.blocco,
       )}
     >
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
           {appuntamento.patientLastName} {appuntamento.patientFirstName}
         </p>
-        <p
-          className={clsx(
-            'text-xs font-medium',
-            valutazione
-              ? 'text-amber-700 dark:text-amber-400'
-              : 'text-teal-700 dark:text-teal-400',
-          )}
-        >
-          {appuntamento.appointmentTime} · {APPOINTMENT_TYPE_LABELS[appuntamento.appointmentType]}
+        <p className="text-xs font-medium text-gray-600 dark:text-gray-300">
+          {appuntamento.appointmentTime} · {servizioService.nomeDi(appuntamento)} · {durata}′
         </p>
         {appuntamento.description && (
           <p className="mt-1 line-clamp-2 text-xs text-gray-500 dark:text-gray-400">

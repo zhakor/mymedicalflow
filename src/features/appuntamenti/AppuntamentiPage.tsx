@@ -58,7 +58,7 @@ export function AppuntamentiPage() {
 
   function hasActiveFilters(): boolean {
     const f = query.filters
-    return !!(f.dateFrom || f.dateTo || f.appointmentType || f.patientLastName)
+    return !!(f.dateFrom || f.dateTo || f.serviceId || f.presenza || f.patientLastName)
   }
 
   function handleSearch(filters: AppointmentFilters) {

@@ -11,6 +11,7 @@ import {
   oggi,
   stessoMese,
 } from '../../lib/agendaService'
+import { servizioService } from '../../lib/servizioService'
 import type { Appointment } from '../../types/appuntamento'
 
 interface CalendarioMeseProps {
@@ -148,9 +149,7 @@ export function CalendarioMese({
                     title={`${a.appointmentTime} — ${a.patientLastName} ${a.patientFirstName}`}
                     className={clsx(
                       'truncate rounded px-1 py-0.5 text-[10px] leading-tight font-medium',
-                      a.appointmentType === 'valutazione'
-                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
-                        : 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300',
+                      servizioService.classiDi(a).anteprima,
                     )}
                   >
                     {a.appointmentTime} {a.patientLastName}

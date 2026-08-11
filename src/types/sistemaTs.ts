@@ -122,12 +122,22 @@ export const OPERAZIONE_TS_LABELS: Record<OperazioneTs, string> = {
   rimborso: 'Rimborso',
 }
 
-export type AmbienteTs = 'mock' | 'test' | 'produzione'
+export type AmbienteTs = 'mock' | 'locale' | 'test' | 'produzione'
 
 export const AMBIENTE_TS_LABELS: Record<AmbienteTs, string> = {
   mock: 'Simulazione locale',
-  test: 'Ambiente di test',
-  produzione: 'Produzione',
+  locale: 'Server di prova sul computer',
+  test: 'Ambiente di collaudo',
+  produzione: 'Sistema TS reale',
+}
+
+/**
+ * Vero quando un invio produce effetti fiscali veri. Serve a decidere quanto
+ * essere rumorosi nell'interfaccia: sotto tutti gli altri ambienti si può
+ * sbagliare senza conseguenze.
+ */
+export function ambienteReale(ambiente: AmbienteTs): boolean {
+  return ambiente === 'produzione'
 }
 
 /** Classificazione del campo `tipo` restituito dal Sistema TS per un messaggio. */

@@ -65,18 +65,34 @@ fn in_esito_trasmissione(risposta: RispostaDocumentoSpesa, ambiente: &str) -> Es
     }
 }
 
+/// Variabile con cui si sceglie l'ambiente all'avvio dell'app.
+///
+/// Puntare al Sistema TS reale resta una decisione deliberata, presa fuori
+/// dall'interfaccia: nessun clic distratto dentro l'app deve poterla cambiare.
+const VARIABILE_AMBIENTE: &str = "MYMEDICALFLOW_STS_AMBIENTE";
+
 fn config_corrente() -> ConfigSistemaTs {
-    // In runtime l'app usa l'ambiente configurato (Test/Produzione). Nelle
-    // suite automatiche invece si preferisce la simulazione locale per
-    // mantenere i test deterministici e senza dipendenze di rete.
+    // Nelle suite automatiche si usa la simulazione locale, per mantenere i
+    // test deterministici e senza dipendenze di rete.
     if cfg!(test) {
-        ConfigSistemaTs {
+        return ConfigSistemaTs {
             ambiente: Ambiente::Mock,
             ..Default::default()
-        }
-    } else {
-        ConfigSistemaTs::default()
+        };
     }
+
+    let mut config = ConfigSistemaTs::default();
+    if let Ok(valore) = std::env::var(VARIABILE_AMBIENTE) {
+        match Ambiente::da_etichetta(&valore) {
+            Some(ambiente) => config.ambiente = ambiente,
+            // Non si indovina: resta il predefinito, ma va detto forte.
+            None => log::warn!(
+                "[sistema_ts] {VARIABILE_AMBIENTE} non riconosciuto: si resta su {}",
+                config.ambiente
+            ),
+        }
+    }
+    config
 }
 
 /// Ambiente attualmente in uso, mostrato nelle Impostazioni.

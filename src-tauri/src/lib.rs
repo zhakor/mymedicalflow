@@ -6,7 +6,7 @@ use tauri::Manager;
 
 mod crypto;
 mod secure_store;
-mod sistema_ts;
+pub mod sistema_ts;
 
 /// Normalizza un nome file proveniente dal frontend.
 ///

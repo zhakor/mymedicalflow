@@ -3,10 +3,11 @@ import { Button } from '../../components/ui/Button'
 import { SistemaTsSection } from './SistemaTsSection'
 import { StatoSistemaTsBox } from './StatoSistemaTsBox'
 import { fatturaService } from '../../lib/fatturaService'
-import { sistemaTsService } from '../../lib/sistemaTsService'
-import type { DatiSistemaTs } from '../../types/sistemaTs'
+import { configurazioneSistemaTs, sistemaTsService } from '../../lib/sistemaTsService'
+import { AMBIENTE_TS_LABELS, ambienteReale } from '../../types/sistemaTs'
+import type { AmbienteTs, DatiSistemaTs } from '../../types/sistemaTs'
 import type { Invoice } from '../../types/fattura'
-import { AlertTriangle, Check, X } from 'lucide-react'
+import { AlertTriangle, Check, ShieldAlert, X } from 'lucide-react'
 
 interface SistemaTsModalProps {
   /** Fattura già salvata: la trasmissione ha bisogno di un identificativo. */
@@ -46,6 +47,19 @@ export function SistemaTsModal({ invoice, onClose, onAggiornato }: SistemaTsModa
   const [errore, setErrore] = useState<string | null>(null)
   // Fa rileggere lo stato della trasmissione dopo un invio.
   const [versione, setVersione] = useState(0)
+  const [ambiente, setAmbiente] = useState<AmbienteTs | null>(null)
+
+  // Chi preme "Invia" deve sapere dove sta mandando: in produzione la spesa
+  // finisce davvero nella posizione fiscale del professionista.
+  useEffect(() => {
+    let vivo = true
+    configurazioneSistemaTs()
+      .then((c) => vivo && setAmbiente(c.ambiente))
+      .catch(() => vivo && setAmbiente(null))
+    return () => {
+      vivo = false
+    }
+  }, [])
 
   useEffect(() => {
     function suTasto(e: KeyboardEvent) {
@@ -110,6 +124,45 @@ export function SistemaTsModal({ invoice, onClose, onAggiornato }: SistemaTsModa
         </div>
 
         <div className="p-6 space-y-5">
+          {/* Ambiente di destinazione. In produzione è un avviso, non un'etichetta */}
+          {ambiente && (
+            <div
+              className={
+                ambienteReale(ambiente)
+                  ? 'flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-800 rounded-xl'
+                  : 'flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl'
+              }
+            >
+              <ShieldAlert
+                size={16}
+                className={
+                  ambienteReale(ambiente)
+                    ? 'text-red-500 flex-shrink-0 mt-0.5'
+                    : 'text-gray-400 flex-shrink-0 mt-0.5'
+                }
+              />
+              <div className="min-w-0 text-xs">
+                <p
+                  className={
+                    ambienteReale(ambiente)
+                      ? 'font-semibold text-red-700 dark:text-red-400'
+                      : 'font-medium text-gray-600 dark:text-gray-300'
+                  }
+                >
+                  Destinazione: {AMBIENTE_TS_LABELS[ambiente]}
+                </p>
+                {ambienteReale(ambiente) && (
+                  <p className="text-red-700 dark:text-red-400 mt-0.5">
+                    Quanto trasmetti risulta nella posizione fiscale del professionista.
+                    {!dati?.opposizione && fattura.patientFiscalCode && (
+                      <> La spesa entra nella dichiarazione precompilata dell'assistito.</>
+                    )}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Dati che partono così come sono: si leggono, non si toccano. */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
             {[

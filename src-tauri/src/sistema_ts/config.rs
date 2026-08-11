@@ -45,6 +45,21 @@ impl Ambiente {
         }
     }
 
+    /// Legge un ambiente dal nome usato nella variabile d'ambiente.
+    ///
+    /// Un nome sconosciuto restituisce `None` e non viene interpretato: meglio
+    /// restare sul predefinito che dedurre la produzione da un errore di
+    /// battitura.
+    pub fn da_etichetta(valore: &str) -> Option<Self> {
+        match valore.trim().to_lowercase().as_str() {
+            "mock" => Some(Ambiente::Mock),
+            "locale" => Some(Ambiente::Locale),
+            "test" | "collaudo" => Some(Ambiente::Test),
+            "produzione" | "produzione_reale" => Some(Ambiente::Produzione),
+            _ => None,
+        }
+    }
+
     /// Endpoint da contattare. `None` per `Mock`, che non esce in rete.
     pub fn endpoint(&self) -> Option<&'static str> {
         match self {
@@ -189,6 +204,22 @@ mod tests {
         }
         assert!(test.contains("invioSS730pTest."), "endpoint di collaudo errato: {test}");
         assert!(!prod.contains("Test"), "la produzione punta al collaudo: {prod}");
+    }
+
+    #[test]
+    fn l_ambiente_si_legge_dal_nome() {
+        assert_eq!(Ambiente::da_etichetta("produzione"), Some(Ambiente::Produzione));
+        assert_eq!(Ambiente::da_etichetta("  PRODUZIONE "), Some(Ambiente::Produzione));
+        assert_eq!(Ambiente::da_etichetta("collaudo"), Some(Ambiente::Test));
+        assert_eq!(Ambiente::da_etichetta("mock"), Some(Ambiente::Mock));
+    }
+
+    /// Un nome storpiato non deve mai risolversi in produzione.
+    #[test]
+    fn un_nome_sconosciuto_non_seleziona_nulla() {
+        for valore in ["", "prod", "produzion", "produzione!", "reale", "sì"] {
+            assert_eq!(Ambiente::da_etichetta(valore), None, "valore: {valore:?}");
+        }
     }
 
     #[test]

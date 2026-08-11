@@ -276,7 +276,7 @@ export function CartellaPaziente({ patient, onBack }: CartellaPazienteProps) {
             Appuntamenti associati
           </h3>
           <Badge variant={svolteQuestoMese > 0 ? 'info' : 'muted'}>
-            {svolteQuestoMese} svolt{svolteQuestoMese === 1 ? 'a' : 'e'} questo mese
+            {svolteQuestoMese} volt{svolteQuestoMese === 1 ? 'a' : 'e'} questo mese
           </Badge>
         </div>
 

@@ -128,7 +128,7 @@ $ultimoTag = git tag --list 'v*' --sort=-v:refname | Select-Object -First 1
 if ($ultimoTag) {
     git diff --quiet $ultimoTag HEAD -- NOTE_RILASCIO.md
     if ($LASTEXITCODE -eq 0) {
-        Interrompi "NOTE_RILASCIO.md non è cambiato da $ultimoTag: sono le novità della versione precedente."
+        Interrompi "NOTE_RILASCIO.md non è cambiato da ${ultimoTag}: sono le novità della versione precedente."
     }
 }
 Scrivi-Ok 'Note di rilascio (NOTE_RILASCIO.md):'

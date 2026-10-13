@@ -113,6 +113,32 @@ if ((git status --porcelain).Length -gt 0) {
 }
 Scrivi-Ok 'Nessuna modifica in sospeso'
 
+# Le novità devono essere scritte PRIMA del tag: la pipeline le copia in
+# latest.json durante la build, e quello che si scrive dopo sulla pagina della
+# release non arriva più alla finestra di aggiornamento dell'app.
+$fNote = Join-Path $radice 'NOTE_RILASCIO.md'
+if (-not (Test-Path $fNote)) { Interrompi 'NOTE_RILASCIO.md non trovato: scrivi lì le novità di questa versione.' }
+# ReadAllText riconosce l'UTF-8 senza BOM; Get-Content in PowerShell 5.1 lo
+# leggerebbe come ANSI e storpierebbe le lettere accentate
+$testoNote = [System.IO.File]::ReadAllText($fNote, [System.Text.Encoding]::UTF8).Trim()
+if (-not $testoNote -or $testoNote -match 'SCRIVI QUI LE NOVIT') {
+    Interrompi 'NOTE_RILASCIO.md contiene ancora il segnaposto: scrivi le novità di questa versione e committale.'
+}
+$ultimoTag = git tag --list 'v*' --sort=-v:refname | Select-Object -First 1
+if ($ultimoTag) {
+    git diff --quiet $ultimoTag HEAD -- NOTE_RILASCIO.md
+    if ($LASTEXITCODE -eq 0) {
+        Interrompi "NOTE_RILASCIO.md non è cambiato da $ultimoTag: sono le novità della versione precedente."
+    }
+}
+Scrivi-Ok 'Note di rilascio (NOTE_RILASCIO.md):'
+$testoNote -split "`r?`n" | ForEach-Object { Write-Host "      $_" -ForegroundColor DarkGray }
+# La finestra di aggiornamento mostra testo semplice: i simboli markdown
+# comparirebbero tali e quali
+if ($testoNote -match '(?m)^\s*#|\*\*') {
+    Scrivi-Avviso "Le note contengono titoli '#' o grassetti '**': nell'app compariranno come simboli."
+}
+
 $versioneAttuale = (Get-Content $fPackage -Raw | ConvertFrom-Json).version
 Scrivi-Ok "Versione attuale: $versioneAttuale"
 
@@ -242,8 +268,9 @@ Write-Host @"
     https://github.com/zhakor/mymedicalflow/releases
 
   Prima di pubblicarla:
-    1. scrivi le novità (finiscono nella finestra di aggiornamento dentro l'app)
-    2. verifica che ci siano latest.json e i file .sig
+    1. verifica che ci siano latest.json e i file .sig
+    2. se vuoi, arricchisci la pagina della release (titoli, grassetti):
+       vale solo per la pagina, l'app mostra il testo di NOTE_RILASCIO.md
     3. premi "Publish release"
 
   Finché resta in bozza, nessun utente riceve l'aggiornamento.

@@ -58,6 +58,30 @@ jobs:
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib
 
+      # Le novità vengono da NOTE_RILASCIO.md, scritto e committato prima del
+      # tag. Vanno lette qui e non scritte dopo sulla pagina della release:
+      # tauri-action copia il corpo della release in `notes` di latest.json al
+      # momento della build, e ciò che si modifica dopo non arriva all'app.
+      - name: Note di rilascio
+        id: note
+        shell: bash
+        run: |
+          # Il checkout su Windows porta i fine riga CRLF: i \r non devono
+          # finire nelle note. $(...) toglie anche gli a capo finali, e printf
+          # ne rimette uno solo, così il delimitatore resta su una riga sua.
+          testo="$(tr -d '\r' < NOTE_RILASCIO.md 2>/dev/null)"
+          if [ -z "${testo//[[:space:]]/}" ]; then
+            echo "::error::NOTE_RILASCIO.md mancante o vuoto"
+            exit 1
+          fi
+          # Delimitatore casuale: il testo delle note non può chiudere il blocco
+          delimitatore="NOTE_$(openssl rand -hex 8)"
+          {
+            echo "testo<<$delimitatore"
+            printf '%s\n' "$testo"
+            echo "$delimitatore"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build, sign and publish
         uses: tauri-apps/tauri-action@v0
         env:
@@ -70,13 +94,11 @@ jobs:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
           releaseName: 'MyMedicalFlow __VERSION__'
           # Il corpo della release finisce nel campo `notes` di latest.json e
-          # viene mostrato nella finestra di aggiornamento dentro l'app.
+          # viene mostrato nella finestra di aggiornamento dentro l'app, come
+          # testo semplice: niente titoli markdown, che comparirebbero con i #.
           releaseBody: |
-            ## Novità di questa versione
+            ${{ steps.note.outputs.testo }}
 
-            <!-- Sostituisci con le novità reali prima di pubblicare -->
-
-            ---
             Aggiornamento automatico: se hai già MyMedicalFlow installato,
             l'app ti proporrà da sola questa versione al prossimo avvio.
           releaseDraft: true

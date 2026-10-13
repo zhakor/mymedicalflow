@@ -86,6 +86,20 @@ L'installer viene generato in `src-tauri/target/release/bundle/`.
 
 ---
 
+## Pubblicare una nuova versione
+
+1. Scrivi le novità in `NOTE_RILASCIO.md` e committale. È il testo che gli utenti
+   vedono nella finestra di aggiornamento dell'app: scrivilo come testo semplice,
+   con elenchi `- ` o `• `, senza titoli `#` né grassetti `**`, che l'app
+   mostrerebbe come simboli.
+2. Lancia `npm run release -- 0.7.0` (prima, se vuoi, `-SoloVerifica` per provare
+   senza pubblicare). Lo script si ferma se le note non sono cambiate dall'ultimo
+   rilascio.
+3. Al termine della pipeline la release è in bozza: puoi arricchirne la pagina,
+   ma l'app mostrerà comunque il testo di `NOTE_RILASCIO.md`. Poi "Publish release".
+
+---
+
 ## Stack tecnico
 
 - [Tauri 2](https://tauri.app) — runtime desktop

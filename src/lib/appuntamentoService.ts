@@ -1,5 +1,6 @@
 import { storageService } from './storageService'
 import { servizioService } from './servizioService'
+import { inMinuti, spostaGiorni } from './agendaService'
 import { STATO_PRESENZA_DEFAULT } from '../types/appuntamento'
 import type { StatoPresenza } from '../types/appuntamento'
 import type {
@@ -9,6 +10,17 @@ import type {
   AppointmentQuery,
   PaginatedAppointments,
 } from '../types/appuntamento'
+
+/** Le date settimanali di una serie, divise fra libere e già occupate. */
+export interface PianoRicorrenza {
+  /** Date in cui si creeranno gli appuntamenti, dopo il primo. */
+  date: string[]
+  /** Date saltate perché a quell'ora c'è già un altro appuntamento. */
+  occupate: string[]
+}
+
+/** Tetto di sicurezza: un anno di sedute settimanali. */
+export const MAX_RIPETIZIONI = 52
 
 export const STORAGE_KEY = 'appuntamenti'
 
@@ -40,6 +52,11 @@ function matchesFilters(a: Appointment, filters: AppointmentFilters): boolean {
   )
     return false
   return true
+}
+
+/** Stessa chiave per "09:00" e "9:00": il confronto è sui minuti, come in agenda. */
+function chiaveSlot(data: string, ora: string): string {
+  return `${data}|${inMinuti(ora) ?? ora}`
 }
 
 // ─── Servizio appuntamenti ────────────────────────────────────────────────────
@@ -148,6 +165,13 @@ export const appuntamentoService = {
     saveAll(all)
   },
 
+  /** Elimina più appuntamenti con una sola scrittura. */
+  deleteMany(ids: string[]): void {
+    if (ids.length === 0) return
+    const daTogliere = new Set(ids)
+    saveAll(getAll().filter((a) => !daTogliere.has(a.id)))
+  },
+
   getCount(): number {
     return getAll().length
   },
@@ -160,5 +184,53 @@ export const appuntamentoService = {
         if (dateDiff !== 0) return dateDiff
         return b.appointmentTime.localeCompare(a.appointmentTime)
       })
+  },
+
+
+  /**
+   * Le settimane successive al primo appuntamento, fino a `fino` compreso,
+   * stesso giorno della settimana e stessa ora. Il primo appuntamento non
+   * rientra: lo crea il form.
+   *
+   * Un orario già preso è occupato chiunque sia il
+   * paziente, e quella settimana si salta invece di sovrapporla.
+   */
+  pianoRicorrenza(primaData: string, ora: string, fino: string): PianoRicorrenza {
+    const presi = new Set(
+      getAll()
+        .filter(Boolean)
+        .map((a) => chiaveSlot(a.appointmentDate, a.appointmentTime)),
+    )
+    const date: string[] = []
+    const occupate: string[] = []
+    let data = spostaGiorni(primaData, 7)
+    while (fino && data <= fino && date.length + occupate.length < MAX_RIPETIZIONI) {
+      if (presi.has(chiaveSlot(data, ora))) occupate.push(data)
+      else date.push(data)
+      data = spostaGiorni(data, 7)
+    }
+    return { date, occupate }
+  },
+
+  /** Crea le ripetizioni settimanali di un appuntamento. Restituisce quante. */
+  creaRicorrenza(input: AppointmentInput, fino: string): number {
+    const { date } = appuntamentoService.pianoRicorrenza(
+      input.appointmentDate,
+      input.appointmentTime,
+      fino,
+    )
+    const now = new Date().toISOString()
+    const serie: Appointment[] = date.map((appointmentDate) => ({
+      ...input,
+      appointmentDate,
+      // Le sedute future non sono ancora svolte, qualunque cosa si sia
+      // segnato sulla prima
+      presenza: STATO_PRESENZA_DEFAULT,
+      id: generateId(),
+      createdAt: now,
+      updatedAt: now,
+    }))
+    if (serie.length > 0) saveAll([...getAll(), ...serie])
+    return serie.length
   },
 }

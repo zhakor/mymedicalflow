@@ -1,15 +1,20 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
-import type { Patient, PatientInput, Gender } from '../../types/paziente'
-import { GENDER_OPTIONS } from '../../types/paziente'
+import type { FixedSlot, Patient, PatientInput, Gender, Weekday } from '../../types/paziente'
+import { GENDER_OPTIONS, WEEKDAY_LABELS, WEEKDAY_OPTIONS } from '../../types/paziente'
 import {
   validatePatient,
   hasErrors,
   type PatientFormErrors,
 } from './pazienteValidation'
 import { pazienteService } from '../../lib/pazienteService'
+import { giornoFissoService } from '../../lib/giornoFissoService'
+import { servizioService } from '../../lib/servizioService'
+import { dataDaChiave, spostaGiorni } from '../../lib/agendaService'
+import { MAX_RIPETIZIONI } from '../../lib/appuntamentoService'
+import { RimuoviGiornoFissoConfirm } from './RimuoviGiornoFissoConfirm'
 import { X, Users } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -19,7 +24,7 @@ interface PazienteModalProps {
   onSaved: (message: string) => void
 }
 
-type FormState = Omit<PatientInput, 'developmentalAge' | 'guardian'> & {
+type FormState = Omit<PatientInput, 'developmentalAge' | 'guardian' | 'fixedSlot'> & {
   developmentalAge: boolean
   guardianFirstName: string
   guardianLastName: string
@@ -36,6 +41,8 @@ type FormState = Omit<PatientInput, 'developmentalAge' | 'guardian'> & {
   city: string
   province: string
   notes: string
+  fixedSlotWeekday: string
+  fixedSlotTime: string
 }
 
 const EMPTY_FORM: FormState = {
@@ -61,6 +68,19 @@ const EMPTY_FORM: FormState = {
   city: '',
   province: '',
   notes: '',
+  fixedSlotWeekday: '',
+  fixedSlotTime: '',
+}
+
+/** Settimane proposte per la serie, circa tre mesi. */
+const SETTIMANE_PROPOSTE = 12
+
+function dataBreve(chiave: string): string {
+  return dataDaChiave(chiave).toLocaleDateString('it-IT')
+}
+
+function stessoSlot(a?: FixedSlot | null, b?: FixedSlot | null): boolean {
+  return !!a && !!b && a.weekday === b.weekday && a.time === b.time
 }
 
 function patientToForm(p: Patient): FormState {
@@ -87,6 +107,8 @@ function patientToForm(p: Patient): FormState {
     city: p.city ?? '',
     province: p.province ?? '',
     notes: p.notes ?? '',
+    fixedSlotWeekday: p.fixedSlot ? String(p.fixedSlot.weekday) : '',
+    fixedSlotTime: p.fixedSlot?.time ?? '',
   }
 }
 
@@ -104,6 +126,10 @@ function formToInput(form: FormState): PatientInput {
     city: form.city.trim() || undefined,
     province: form.province.trim().toUpperCase() || undefined,
     notes: form.notes.trim() || undefined,
+    fixedSlot:
+      form.fixedSlotWeekday && form.fixedSlotTime
+        ? { weekday: Number(form.fixedSlotWeekday) as Weekday, time: form.fixedSlotTime }
+        : undefined,
     guardian: form.developmentalAge
       ? {
           firstName: form.guardianFirstName.trim(),
@@ -127,16 +153,81 @@ export function PazienteModal({ patient, onClose, onSaved }: PazienteModalProps)
     patient ? patientToForm(patient) : EMPTY_FORM,
   )
   const [errors, setErrors] = useState<PatientFormErrors>({})
+  const [fixedSlotError, setFixedSlotError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  // Chiudi con Escape
+  // ── Giorno fisso ──
+  /** Il giorno fisso come è salvato ora: cambia se lo si rimuove da qui. */
+  const [giornoFissoSalvato, setGiornoFissoSalvato] = useState<FixedSlot | undefined>(
+    patient?.fixedSlot,
+  )
+  const [rimuoviAperto, setRimuoviAperto] = useState(false)
+  const [avvisoGiornoFisso, setAvvisoGiornoFisso] = useState<string | null>(null)
+
+  const slotDelForm: FixedSlot | null =
+    form.fixedSlotWeekday && form.fixedSlotTime
+      ? { weekday: Number(form.fixedSlotWeekday) as Weekday, time: form.fixedSlotTime }
+      : null
+  const slotNuovo = !!slotDelForm && !stessoSlot(slotDelForm, giornoFissoSalvato)
+  /**
+   * La serie si propone per un giorno fisso nuovo o cambiato, ma anche per
+   * uno già salvato che in calendario non ha appuntamenti futuri: è il caso di
+   * chi l'aveva impostato prima che la scheda sapesse crearli.
+   */
+  const proponiSerie = useMemo(
+    () =>
+      slotNuovo ||
+      (!!slotDelForm && !!patient &&
+        giornoFissoService.appuntamentiFuturi(patient.id, slotDelForm).length === 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [slotNuovo, form.fixedSlotWeekday, form.fixedSlotTime, patient?.id],
+  )
+
+  // Serie in calendario: appuntamenti veri dal primo giorno utile in avanti
+  const [creaSerie, setCreaSerie] = useState(true)
+  const [serieServizio, setSerieServizio] = useState('')
+  const [serieFino, setSerieFino] = useState('')
+  const [serieErrore, setSerieErrore] = useState<string | null>(null)
+  const primaData = slotDelForm ? giornoFissoService.primaData(slotDelForm) : ''
+  const finoEffettivo =
+    serieFino || (primaData ? spostaGiorni(primaData, 7 * (SETTIMANE_PROPOSTE - 1)) : '')
+  const pianoSerie = useMemo(
+    () =>
+      proponiSerie && creaSerie && slotDelForm && finoEffettivo
+        ? giornoFissoService.pianoSerie(slotDelForm, finoEffettivo)
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [proponiSerie, creaSerie, form.fixedSlotWeekday, form.fixedSlotTime, finoEffettivo],
+  )
+  const opzioniServizio = useMemo(
+    () =>
+      servizioService.getAttivi().map((sv) => ({
+        value: sv.id,
+        label: `${sv.nome} · ${sv.durataMinuti} min`,
+      })),
+    [],
+  )
+
+  function handleGiornoFissoRimosso(eliminati: number) {
+    setRimuoviAperto(false)
+    setGiornoFissoSalvato(undefined)
+    setForm((prev) => ({ ...prev, fixedSlotWeekday: '', fixedSlotTime: '' }))
+    setFixedSlotError(null)
+    setAvvisoGiornoFisso(
+      eliminati > 0
+        ? `Giorno fisso rimosso ed eliminat${eliminati === 1 ? 'o 1 appuntamento futuro' : `i ${eliminati} appuntamenti futuri`}.`
+        : 'Giorno fisso rimosso.',
+    )
+  }
+
+  // Chiudi con Escape (non mentre è aperta la conferma di rimozione)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape' && !rimuoviAperto) onClose()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, rimuoviAperto])
 
   function set(field: keyof FormState, value: string | boolean) {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -149,19 +240,29 @@ export function PazienteModal({ patient, onClose, onSaved }: PazienteModalProps)
     e.preventDefault()
     const input = formToInput(form)
     const errs = validatePatient(input)
-    if (hasErrors(errs)) {
+    const slotIncomplete = !form.fixedSlotWeekday !== !form.fixedSlotTime
+    setFixedSlotError(slotIncomplete ? "Indica sia il giorno sia l'orario, oppure lascia entrambi vuoti." : null)
+    const servizioMancante = !!pianoSerie && pianoSerie.date.length > 0 && !serieServizio
+    setSerieErrore(servizioMancante ? 'Scegli il servizio degli appuntamenti da creare.' : null)
+    if (hasErrors(errs) || slotIncomplete || servizioMancante) {
       setErrors(errs)
       return
     }
     setSaving(true)
     try {
-      if (isEdit) {
-        pazienteService.update(patient!.id, input)
-        onSaved('Paziente aggiornato con successo.')
-      } else {
-        pazienteService.create(input)
-        onSaved('Paziente aggiunto con successo.')
+      const salvato = isEdit
+        ? pazienteService.update(patient!.id, input)
+        : pazienteService.create(input)
+      let creati = 0
+      if (salvato && pianoSerie && slotDelForm && pianoSerie.date.length > 0) {
+        creati = giornoFissoService.creaSerie(salvato, slotDelForm, serieServizio, finoEffettivo)
       }
+      const base = isEdit ? 'Paziente aggiornato con successo.' : 'Paziente aggiunto con successo.'
+      onSaved(
+        creati > 0
+          ? `${base} Creati ${creati} appuntament${creati === 1 ? 'o' : 'i'} in calendario fino al ${dataBreve(finoEffettivo)}.`
+          : base,
+      )
     } finally {
       setSaving(false)
     }
@@ -428,6 +529,116 @@ export function PazienteModal({ patient, onClose, onSaved }: PazienteModalProps)
             </div>
           )}
 
+          {/* Giorno fisso */}
+          <div>
+            <div className="flex items-center justify-between gap-3 mb-1">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                Giorno fisso appuntamenti
+              </p>
+              {isEdit && giornoFissoSalvato && (
+                <button
+                  type="button"
+                  onClick={() => setRimuoviAperto(true)}
+                  className="text-xs font-medium text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 hover:underline"
+                >
+                  Rimuovi giorno fisso
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              Facoltativo. Può creare gli appuntamenti in calendario ogni settimana, e viene
+              proposto quando crei un nuovo appuntamento.
+            </p>
+            {avvisoGiornoFisso && (
+              <p className="text-xs text-teal-700 dark:text-teal-400 mb-3">{avvisoGiornoFisso}</p>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <Select
+                label="Giorno"
+                options={WEEKDAY_OPTIONS}
+                value={form.fixedSlotWeekday}
+                onChange={(e) => { set('fixedSlotWeekday', e.target.value); setFixedSlotError(null) }}
+              />
+              <Input
+                label="Orario"
+                type="time"
+                value={form.fixedSlotTime}
+                onChange={(e) => { set('fixedSlotTime', e.target.value); setFixedSlotError(null) }}
+              />
+            </div>
+            {fixedSlotError && <p className="text-sm text-red-500 mt-1">{fixedSlotError}</p>}
+
+            {/* Serie in calendario: giorno fisso nuovo, cambiato o ancora senza appuntamenti */}
+            {proponiSerie && slotDelForm && (
+              <div className="mt-4 rounded-xl border border-teal-100 dark:border-teal-900 bg-teal-50/50 dark:bg-teal-900/10 p-4 space-y-3">
+                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={creaSerie}
+                    onChange={(e) => setCreaSerie(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 rounded border-gray-300 dark:border-gray-600 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    Crea gli appuntamenti in calendario ogni{' '}
+                    <span className="font-medium">
+                      {WEEKDAY_LABELS[slotDelForm.weekday].toLowerCase()} alle {slotDelForm.time}
+                    </span>
+                    , dal {dataBreve(primaData)}
+                  </span>
+                </label>
+                {slotNuovo && giornoFissoSalvato && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 ml-6">
+                    Gli appuntamenti del giorno fisso precedente restano: per toglierli usa
+                    &quot;Rimuovi giorno fisso&quot; prima di cambiarlo.
+                  </p>
+                )}
+                {creaSerie && (
+                  <div className="ml-6 space-y-2">
+                    <div className="grid grid-cols-2 gap-4">
+                      <Select
+                        label="Servizio"
+                        required
+                        options={opzioniServizio}
+                        value={serieServizio}
+                        onChange={(e) => { setSerieServizio(e.target.value); setSerieErrore(null) }}
+                        error={serieErrore ?? undefined}
+                      />
+                      <Input
+                        label="Fino al"
+                        type="date"
+                        min={primaData}
+                        max={spostaGiorni(primaData, 7 * (MAX_RIPETIZIONI - 1))}
+                        value={finoEffettivo}
+                        onChange={(e) => setSerieFino(e.target.value)}
+                      />
+                    </div>
+                    {pianoSerie && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {pianoSerie.date.length > 0 ? (
+                          <>
+                            Verranno creati{' '}
+                            <span className="font-semibold text-gray-700 dark:text-gray-300">
+                              {pianoSerie.date.length} appuntament{pianoSerie.date.length === 1 ? 'o' : 'i'}
+                            </span>{' '}
+                            al salvataggio.
+                          </>
+                        ) : (
+                          'Nessuna settimana libera nel periodo scelto.'
+                        )}
+                        {pianoSerie.occupate.length > 0 && (
+                          <span className="block text-amber-600 dark:text-amber-400 mt-0.5">
+                            Saltat{pianoSerie.occupate.length === 1 ? 'o' : 'i'} per orario occupato:{' '}
+                            {pianoSerie.occupate.map(dataBreve).join(', ')}
+                          </span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Note */}
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
@@ -453,6 +664,15 @@ export function PazienteModal({ patient, onClose, onSaved }: PazienteModalProps)
           </div>
         </form>
       </div>
+
+      {/* Conferma rimozione giorno fisso */}
+      {rimuoviAperto && patient && giornoFissoSalvato && (
+        <RimuoviGiornoFissoConfirm
+          patient={{ ...patient, fixedSlot: giornoFissoSalvato }}
+          onRimosso={handleGiornoFissoRimosso}
+          onAnnulla={() => setRimuoviAperto(false)}
+        />
+      )}
     </div>
   )
 }

@@ -3,7 +3,7 @@ import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import type { Patient } from '../../types/paziente'
-import { GENDER_LABELS } from '../../types/paziente'
+import { GENDER_LABELS, WEEKDAY_LABELS } from '../../types/paziente'
 import {
   ArrowLeft,
   User,
@@ -15,6 +15,7 @@ import {
   Clock,
   MapPin,
   Eye,
+  Repeat,
 } from 'lucide-react'
 import { useImpostazioniStore } from '../../stores/impostazioniStore'
 import { fatturaService } from '../../lib/fatturaService'
@@ -160,6 +161,13 @@ export function CartellaPaziente({ patient, onBack }: CartellaPazienteProps) {
             label="Registrato il"
             value={formatDate(patient.createdAt)}
           />
+          {patient.fixedSlot && (
+            <InfoRow
+              icon={<Repeat size={15} />}
+              label="Giorno fisso"
+              value={`${WEEKDAY_LABELS[patient.fixedSlot.weekday]} alle ${patient.fixedSlot.time}`}
+            />
+          )}
         </div>
       </Card>
 

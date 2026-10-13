@@ -32,7 +32,8 @@ export interface AppuntamentoStore {
   setPageSize: (pageSize: number) => void
   setFilters: (filters: AppointmentFilters) => void
   resetFilters: () => void
-  createAppointment: (input: AppointmentInput) => void
+  /** Con `ripetiFino` crea anche le ripetizioni settimanali fino a quella data. */
+  createAppointment: (input: AppointmentInput, ripetiFino?: string) => void
   updateAppointment: (id: string, input: AppointmentInput) => void
   /** Sposta data e ora senza toccare il resto: usato dal trascinamento. */
   spostaAppointment: (id: string, data: string, ora: string) => void
@@ -82,8 +83,9 @@ export const useAppuntamentoStore = create<AppuntamentoStore>((set, get) => ({
     get().loadAppointments({ page: 1, filters: { ...EMPTY_APPOINTMENT_FILTERS } })
   },
 
-  createAppointment: (input) => {
+  createAppointment: (input, ripetiFino) => {
     appuntamentoService.create(input)
+    if (ripetiFino) appuntamentoService.creaRicorrenza(input, ripetiFino)
     get().loadAppointments()
     get().showFeedback('Appuntamento creato con successo.')
   },

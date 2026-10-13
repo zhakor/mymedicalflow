@@ -29,6 +29,32 @@ export interface Guardian {
   province?: string    // 2 lettere maiuscole
 }
 
+// ─── Giorno fisso ──────────────────────────────────────────────────────────────
+
+/** Giorno della settimana ISO: 1 = lunedì … 7 = domenica */
+export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7
+
+export const WEEKDAY_LABELS: Record<Weekday, string> = {
+  1: 'Lunedì',
+  2: 'Martedì',
+  3: 'Mercoledì',
+  4: 'Giovedì',
+  5: 'Venerdì',
+  6: 'Sabato',
+  7: 'Domenica',
+}
+
+export const WEEKDAY_OPTIONS = ([1, 2, 3, 4, 5, 6, 7] as Weekday[]).map((value) => ({
+  value: String(value),
+  label: WEEKDAY_LABELS[value],
+}))
+
+/** Giorno e ora ricorrenti in cui il paziente viene abitualmente */
+export interface FixedSlot {
+  weekday: Weekday
+  time: string         // HH:MM
+}
+
 // ─── Paziente ────────────────────────────────────────────────────────────────
 
 export interface Patient {
@@ -47,6 +73,7 @@ export interface Patient {
   city?: string
   province?: string    // 2 lettere maiuscole
   notes?: string
+  fixedSlot?: FixedSlot
   createdAt: string    // ISO datetime
   updatedAt: string    // ISO datetime
 }

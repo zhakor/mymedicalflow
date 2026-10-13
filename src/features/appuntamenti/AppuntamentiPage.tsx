@@ -142,11 +142,11 @@ export function AppuntamentiPage() {
     setOraProposta(undefined)
   }
 
-  function handleSave(input: AppointmentInput, id?: string) {
+  function handleSave(input: AppointmentInput, id?: string, ripetiFino?: string) {
     if (id) {
       updateAppointment(id, input)
     } else {
-      createAppointment(input)
+      createAppointment(input, ripetiFino)
     }
   }
 
@@ -273,6 +273,10 @@ export function AppuntamentiPage() {
           onClose={handleModalClose}
           onSaved={handleSaved}
           onSave={handleSave}
+          onGiornoFissoRimosso={(messaggio) => {
+            loadAppointments()
+            showFeedback(messaggio)
+          }}
         />
       )}
 

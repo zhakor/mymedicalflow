@@ -1,5 +1,6 @@
 import { storageService } from './storageService'
 import type {
+  FixedSlot,
   Patient,
   PatientInput,
   PatientFilters,
@@ -109,6 +110,21 @@ export const pazienteService = {
       ...all[idx],
       ...input,
       id,
+      updatedAt: new Date().toISOString(),
+    }
+    all[idx] = updated
+    saveAll(all)
+    return updated
+  },
+
+  /** Imposta (o rimuove, con undefined) il giorno fisso del paziente. */
+  setFixedSlot(id: string, fixedSlot: FixedSlot | undefined): Patient | null {
+    const all = getAll()
+    const idx = all.findIndex((p) => p.id === id)
+    if (idx === -1) return null
+    const updated: Patient = {
+      ...all[idx],
+      fixedSlot,
       updatedAt: new Date().toISOString(),
     }
     all[idx] = updated

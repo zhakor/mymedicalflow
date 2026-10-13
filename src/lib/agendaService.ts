@@ -12,6 +12,7 @@
 
 import { servizioService } from './servizioService'
 import type { Appointment } from '../types/appuntamento'
+import type { Weekday } from '../types/paziente'
 import { DURATA_DI_RIPIEGO } from '../types/servizio'
 
 // ─── Convenzioni della giornata lavorativa ────────────────────────────────────
@@ -46,6 +47,23 @@ export function oggi(): string {
 export function dataDaChiave(chiave: string): Date {
   const [anno, mese, giorno] = chiave.split('-').map(Number)
   return new Date(anno, (mese ?? 1) - 1, giorno ?? 1)
+}
+
+/** La stessa data spostata di `giorni` giorni, avanti o indietro. */
+export function spostaGiorni(chiave: string, giorni: number): string {
+  const d = dataDaChiave(chiave)
+  return chiaveData(new Date(d.getFullYear(), d.getMonth(), d.getDate() + giorni))
+}
+
+/** Giorno della settimana con il lunedì a 1 e la domenica a 7. */
+export function giornoSettimana(chiave: string): Weekday {
+  // getDay() mette la domenica a 0
+  return (((dataDaChiave(chiave).getDay() + 6) % 7) + 1) as Weekday
+}
+
+/** La prima data, a partire da `da` compreso, che cade nel giorno indicato. */
+export function prossimaData(giorno: Weekday, da: string = oggi()): string {
+  return spostaGiorni(da, (giorno - giornoSettimana(da) + 7) % 7)
 }
 
 const GIORNI_SETTIMANA = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']

@@ -84,6 +84,14 @@ export async function cifra(chiaro: Byte, chiave: CryptoKey): Promise<Byte> {
   return out
 }
 
+/** La chiave non apre il file (o il file è stato alterato): AES-GCM non lo distingue. */
+export class ChiaveErrata extends Error {
+  constructor() {
+    super('codice di recupero errato oppure file danneggiato')
+    this.name = 'ChiaveErrata'
+  }
+}
+
 export async function decifra(raw: Byte, chiave: CryptoKey): Promise<Byte> {
   if (raw.length < HEADER_LEN || MAGIC.some((b, i) => raw[i] !== b)) {
     throw new Error('file non riconosciuto: non è un backup di MyMedicalFlow')
@@ -98,7 +106,7 @@ export async function decifra(raw: Byte, chiave: CryptoKey): Promise<Byte> {
   try {
     return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, chiave, testo))
   } catch {
-    throw new Error('codice di recupero errato oppure file danneggiato')
+    throw new ChiaveErrata()
   }
 }
 

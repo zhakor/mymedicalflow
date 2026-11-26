@@ -5,6 +5,7 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use tauri::Manager;
 
 mod crypto;
+mod google;
 mod secure_store;
 pub mod sistema_ts;
 
@@ -223,6 +224,10 @@ pub fn run() {
             imposta_cartella_backup,
             segna_copie_configurate,
             destinazioni_suggerite,
+            google::google_accedi,
+            google::google_token,
+            google::google_collegato,
+            google::google_esci,
             sistema_ts::commands::sistema_ts_configurazione,
             sistema_ts::commands::sistema_ts_trasmetti,
             sistema_ts::commands::sistema_ts_credenziali_stato,

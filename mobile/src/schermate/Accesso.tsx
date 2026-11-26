@@ -3,12 +3,12 @@
  * accesso, licenza mancante, archivio non ancora configurato dal PC.
  */
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { KeyRound, LogOut, Monitor, ShieldX } from 'lucide-react'
 import { logoBianco, logoBlu } from '@desktop/assets/logos'
 import { Centrato } from './Avvisi'
 import { AccessoAnnullato, accedi, esci, preparaAccesso, ultimaEmail } from '../dati/google'
-import { avviaModalitaGoogle, useSincronizzazione } from '../dati/sincronizzazione'
+import { apriConCodice, avviaModalitaGoogle, useSincronizzazione } from '../dati/sincronizzazione'
 
 type Libreria = Awaited<ReturnType<typeof preparaAccesso>>
 
@@ -127,11 +127,56 @@ export function SenzaArchivio() {
   )
 }
 
-/** Archivio trovato: il codice di recupero arriva con il prossimo passo. */
+/**
+ * Primo accesso su questo telefono: il codice di recupero dello studio apre
+ * l'archivio. Si chiede una volta sola: poi la chiave resta sul telefono.
+ */
 export function CodiceRecupero() {
+  const [codice, setCodice] = useState('')
+  const [inCorso, setInCorso] = useState(false)
+  const [errore, setErrore] = useState<string | null>(null)
+
+  const apri = (e: FormEvent) => {
+    e.preventDefault()
+    setErrore(null)
+    setInCorso(true)
+    apriConCodice(codice)
+      .catch((err: Error) => setErrore(err.message))
+      .finally(() => setInCorso(false))
+  }
+
   return (
-    <Bloccato icona={<KeyRound size={30} />} titolo="Archivio trovato">
-      <p>Il tuo archivio su Drive è pronto. Per aprirlo servirà il codice di recupero dello studio.</p>
+    <Bloccato icona={<KeyRound size={30} />} titolo="Codice di recupero">
+      <p>
+        L'archivio dello studio è su Drive. Per aprirlo inserisci il codice di recupero: lo trovi sul PC in{' '}
+        <strong>Impostazioni → Copie di sicurezza</strong>.
+      </p>
+      <form onSubmit={apri} className="pt-2 text-left">
+        <input
+          value={codice}
+          onChange={(e) => setCodice(e.target.value)}
+          placeholder="XXXX-XXXX-XXXX-…"
+          autoCapitalize="characters"
+          autoCorrect="off"
+          autoComplete="off"
+          spellCheck={false}
+          aria-label="Codice di recupero"
+          className="input-field font-mono text-sm tracking-wide"
+        />
+        {errore && (
+          <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">
+            {errore}
+          </p>
+        )}
+        <button
+          type="submit"
+          disabled={inCorso || codice.trim().length < 10}
+          className="tocco mt-3 w-full rounded-xl bg-teal-600 px-5 py-3 font-medium text-white active:bg-teal-700 disabled:opacity-50"
+        >
+          {inCorso ? "Apertura dell'archivio…" : "Apri l'archivio"}
+        </button>
+        <p className="mt-2 text-xs text-gray-400">Si chiede una volta sola: poi il telefono lo ricorda in modo protetto.</p>
+      </form>
     </Bloccato>
   )
 }

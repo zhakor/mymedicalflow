@@ -6,12 +6,19 @@
  */
 
 import { create } from 'zustand'
-import { codiceInChiave, importaChiave, type Archivio } from '@desktop/sync/cifratura'
+import { ChiaveErrata, codiceInChiave, importaChiave, type Archivio } from '@desktop/sync/cifratura'
 import { CloudInMemoria, type Connessione } from '@desktop/sync/memoria'
 import { MotoreSincronizzazione, type EsitoSincronizzazione } from '@desktop/sync/motore'
 import { Fatturazione } from '@desktop/sync/fatturazione'
 import { byteInBase64, estraiModello } from '@desktop/sync/modello'
-import { ErroreAccesso, ErroreLicenza, type DepositoModello } from '@desktop/sync/contratti'
+import {
+  ErroreAccesso,
+  ErroreConnessione,
+  ErroreLicenza,
+  type DepositoFile,
+  type DepositoModello,
+  type Registro,
+} from '@desktop/sync/contratti'
 import { Drive, type Cartelle } from '@desktop/sync/drive'
 import { registroFirestore } from '@desktop/sync/firestore'
 import { oggi, inOrario } from '@desktop/lib/agendaService'
@@ -22,6 +29,7 @@ import { impostaArchivio, leggiArchivio, suModificaUtente } from './archivio'
 import { avvisa } from '../navigazione'
 import { archivioDemo } from './demo'
 import { sessioneRipresa, type Sessione } from './google'
+import { chiaveSalvata, dimenticaChiave, salvaChiave } from './chiave'
 
 /** Codice di recupero della modalità simulata (chiave 0..31): mai usato con dati reali. */
 const CODICE_PROVA = 'AAAT-EA2E-AYDA-RCAK-BJFT-2DJR-B6JB-CETX-CTMV-PF22-DEQB-0HA7-D2ST'
@@ -69,7 +77,11 @@ function registraEsito(esito: EsitoSincronizzazione): void {
 
 function registraErrore(err: unknown): void {
   console.error('[sincronizzazione]', err)
-  imposta({ sync: 'errore', errore: err instanceof Error ? err.message : String(err) })
+  // Token di Drive scaduto o licenza revocata ad app aperta: si torna alla
+  // schermata relativa; i dati in memoria e le modifiche in attesa restano
+  if (err instanceof ErroreAccesso) imposta({ app: 'accesso', errore: err.message })
+  else if (err instanceof ErroreLicenza) imposta({ app: 'licenza' })
+  else imposta({ sync: 'errore', errore: err instanceof Error ? err.message : String(err) })
 }
 
 /**
@@ -201,52 +213,67 @@ export async function avviaModalitaSimulata(): Promise<void> {
     const simulatore = new SimulatorePc(cloud, chiave, archivioDemo())
     await simulatore.configura()
 
-    let collegato = false
-    const client = cloud.client(connessione)
-    depositoModello = client.modello
-    const motore = new MotoreSincronizzazione({
-      ...client,
-      chiave,
-      dispositivo: 'telefono',
-      leggiLocale: leggiArchivio,
-      scriviLocale: (a) => {
-        impostaArchivio(a)
-        if (collegato) avvisa("Aggiornato dall'altro dispositivo", 'info')
-      },
-      // TODO Fase 3: finestra dei conflitti. Per ora prevale l'altro dispositivo.
-      risolviConflitti: async () => new Map(),
-      onEsito: registraEsito,
-      onErrore: registraErrore,
-    })
-
-    await motore.collega()
-    collegato = true
-    motoreTelefono = motore
-    // Il telefono lavora solo online: niente bozze da numerare
-    const fatturazione = new Fatturazione({ motore, onErrore: registraErrore })
-    fatturazioneTelefono = fatturazione
-    motore.ascolta(fatturazione.suCambio)
-
-    let attesa: ReturnType<typeof setTimeout> | undefined
-    suModificaUtente(() => {
-      imposta({ sync: 'in-corso' })
-      clearTimeout(attesa)
-      attesa = setTimeout(() => motore.sincronizza().catch(registraErrore), 300)
-    })
-
-    window.addEventListener('online', () => {
-      connessione.online = true
-      motore.sincronizza().catch(registraErrore)
-    })
-    window.addEventListener('offline', () => {
-      connessione.online = false
-      imposta({ sync: 'offline' })
-    })
-
-    imposta({ app: 'pronta', revisione: motore.revisione, aggiornatoIl: new Date().toISOString(), simulatore })
+    imposta({ simulatore })
+    await avviaMotore(cloud.client(connessione), chiave, 'telefono', (online) => (connessione.online = online))
   } catch (err) {
     imposta({ app: 'errore', errore: err instanceof Error ? err.message : String(err) })
   }
+}
+
+/**
+ * Collega il telefono all'archivio (che SOSTITUISCE quello in memoria) e
+ * avvia ascolto e pubblicazione delle modifiche: da qui l'app è pronta.
+ * Fallisce se la chiave non decifra l'archivio.
+ */
+async function avviaMotore(
+  cloud: { deposito: DepositoFile; registro: Registro; modello: DepositoModello },
+  chiave: CryptoKey,
+  dispositivo: string,
+  rete?: (online: boolean) => void,
+): Promise<void> {
+  let collegato = false
+  const motore = new MotoreSincronizzazione({
+    deposito: cloud.deposito,
+    registro: cloud.registro,
+    chiave,
+    dispositivo,
+    leggiLocale: leggiArchivio,
+    scriviLocale: (a) => {
+      impostaArchivio(a)
+      if (collegato) avvisa("Aggiornato dall'altro dispositivo", 'info')
+    },
+    // TODO Fase 3: finestra dei conflitti. Per ora prevale l'altro dispositivo.
+    risolviConflitti: async () => new Map(),
+    onEsito: registraEsito,
+    onErrore: registraErrore,
+  })
+
+  await motore.collega()
+  collegato = true
+  motoreTelefono = motore
+  depositoModello = cloud.modello
+  // Il telefono lavora solo online: niente bozze da numerare
+  const fatturazione = new Fatturazione({ motore, onErrore: registraErrore })
+  fatturazioneTelefono = fatturazione
+  motore.ascolta(fatturazione.suCambio)
+
+  let attesa: ReturnType<typeof setTimeout> | undefined
+  suModificaUtente(() => {
+    imposta({ sync: 'in-corso' })
+    clearTimeout(attesa)
+    attesa = setTimeout(() => motore.sincronizza().catch(registraErrore), 300)
+  })
+
+  window.addEventListener('online', () => {
+    rete?.(true)
+    motore.sincronizza().catch(registraErrore)
+  })
+  window.addEventListener('offline', () => {
+    rete?.(false)
+    imposta({ sync: 'offline' })
+  })
+
+  imposta({ app: 'pronta', revisione: motore.revisione, aggiornatoIl: new Date().toISOString() })
 }
 
 // ─── Modalità Google ──────────────────────────────────────────────────────────
@@ -264,6 +291,9 @@ export function avviaModalitaGoogle(sessione?: Sessione): Promise<void> {
   return avvioGoogle
 }
 
+/** L'archivio trovato su Drive, in attesa del codice di recupero. */
+let archivioTrovato: { sessione: Sessione; cloud: { deposito: DepositoFile; registro: Registro; modello: DepositoModello } } | null = null
+
 async function avvioConGoogle(sessione?: Sessione): Promise<void> {
   imposta({ app: 'avvio', errore: null })
   try {
@@ -272,27 +302,153 @@ async function avvioConGoogle(sessione?: Sessione): Promise<void> {
       imposta({ app: 'accesso' })
       return
     }
+
+    // Accesso rinnovato ad app già aperta (token scaduto): il motore usa il
+    // token nuovo alla prossima richiesta, nulla da ricaricare. Con un altro
+    // account invece si riparte da zero.
+    if (motoreTelefono) {
+      if (s.uid !== archivioTrovato?.sessione.uid) return location.reload()
+      imposta({ app: 'pronta' })
+      motoreTelefono.sincronizza().catch(registraErrore)
+      return
+    }
     imposta({ email: s.email })
 
-    // La lettura del puntatore passa dalle regole di Firestore: è anche il
+    // Ogni lettura del puntatore passa dalle regole di Firestore: è anche il
     // controllo della licenza, fatto dal server di Google.
-    const { puntatore } = await registroFirestore(s.db, s.uid).leggi()
-
+    const registro = registroFirestore(s.db, s.uid, { onErrore: registraErrore })
     const drive = new Drive({ token: s.token })
-    let cartelle: Cartelle | null = null
-    for (const radice of await drive.cercaRadici()) {
-      cartelle = await drive.trovaStruttura(radice.id)
-      if (cartelle) break
+    const cloudDi = (c: Cartelle) => ({ deposito: drive.deposito(c), registro, modello: drive.modello(c) })
+    // La chiave salvata al primo accesso evita di richiedere il codice
+    const chiave = await chiaveSalvata(s.uid)
+
+    // Via veloce, ogni apertura dopo la prima: cartelle ricordate e chiave
+    // salvata, ci si collega subito senza cercare nulla su Drive.
+    const ricordate = cartelleRicordate(s.uid)
+    if (ricordate && chiave) {
+      archivioTrovato = { sessione: s, cloud: cloudDi(ricordate) }
+      try {
+        await avviaMotore(archivioTrovato.cloud, chiave, idDispositivo())
+        verificaCartelle(drive, s.uid, ricordate)
+        return
+      } catch (err) {
+        if (erroreDiChiave(err)) {
+          // Il codice di recupero è cambiato sul PC: quella salvata non serve più
+          await dimenticaChiave(s.uid)
+          imposta({ app: 'codice' })
+          return
+        }
+        if (err instanceof ErroreAccesso || err instanceof ErroreLicenza || err instanceof ErroreConnessione) throw err
+        // Archivio spostato o ricreato dal PC: si cerca di nuovo
+        ricordaCartelle(s.uid, null)
+      }
     }
+
+    // Via completa: puntatore e cartelle insieme
+    const [{ puntatore }, cartelle] = await Promise.all([registro.leggi(), trovaCartelle(drive)])
     if (!puntatore || !cartelle) {
       imposta({ app: 'senza-archivio' })
       return
     }
-    // TODO prossimo passo: codice di recupero, verifica e collegamento del motore
+    ricordaCartelle(s.uid, cartelle)
+    archivioTrovato = { sessione: s, cloud: cloudDi(cartelle) }
+
+    if (chiave) {
+      try {
+        await avviaMotore(archivioTrovato.cloud, chiave, idDispositivo())
+        return
+      } catch (err) {
+        if (!erroreDiChiave(err)) throw err
+        await dimenticaChiave(s.uid)
+      }
+    }
     imposta({ app: 'codice' })
   } catch (err) {
-    if (err instanceof ErroreAccesso) imposta({ app: 'accesso', errore: err.message })
-    else if (err instanceof ErroreLicenza) imposta({ app: 'licenza' })
-    else imposta({ app: 'errore', errore: err instanceof Error ? err.message : String(err) })
+    erroreDiAvvio(err)
   }
+}
+
+async function trovaCartelle(drive: Drive): Promise<Cartelle | null> {
+  for (const radice of await drive.cercaRadici()) {
+    const cartelle = await drive.trovaStruttura(radice.id)
+    if (cartelle) return cartelle
+  }
+  return null
+}
+
+/**
+ * Gli id delle cartelle su Drive, ricordati fra un'apertura e l'altra per
+ * non cercarli ogni volta (CR §12, velocità). Solo identificativi: nessun dato.
+ */
+const chiaveCartelle = (uid: string) => `mmf.mobile.cartelle.${uid}`
+
+function cartelleRicordate(uid: string): Cartelle | null {
+  try {
+    const c = JSON.parse(localStorage.getItem(chiaveCartelle(uid)) ?? 'null') as Cartelle | null
+    return c?.radice && c.archivio && c.copie && c.template ? c : null
+  } catch {
+    return null
+  }
+}
+
+function ricordaCartelle(uid: string, cartelle: Cartelle | null): void {
+  try {
+    if (cartelle) localStorage.setItem(chiaveCartelle(uid), JSON.stringify(cartelle))
+    else localStorage.removeItem(chiaveCartelle(uid))
+  } catch {
+    // Senza spazio si cercano a ogni apertura
+  }
+}
+
+/** Dopo la via veloce, in sottofondo: se le cartelle sono cambiate, la prossima apertura le cerca. */
+function verificaCartelle(drive: Drive, uid: string, ricordate: Cartelle): void {
+  drive
+    .trovaStruttura(ricordate.radice)
+    .then((attuali) => {
+      if (JSON.stringify(attuali) !== JSON.stringify(ricordate)) ricordaCartelle(uid, null)
+    })
+    .catch(() => {})
+}
+
+function erroreDiAvvio(err: unknown): void {
+  if (err instanceof ErroreAccesso) imposta({ app: 'accesso', errore: err.message })
+  else if (err instanceof ErroreLicenza) imposta({ app: 'licenza' })
+  else imposta({ app: 'errore', errore: err instanceof Error ? err.message : String(err) })
+}
+
+const erroreDiChiave = (err: unknown) => err instanceof ChiaveErrata
+
+/** Id casuale di questo telefono, per i salvataggi (CR §12: mai nomi di dispositivi). */
+function idDispositivo(): string {
+  const CHIAVE = 'mmf.mobile.dispositivo'
+  try {
+    const id = localStorage.getItem(CHIAVE) ?? `telefono-${crypto.randomUUID()}`
+    localStorage.setItem(CHIAVE, id)
+    return id
+  } catch {
+    return `telefono-${crypto.randomUUID()}`
+  }
+}
+
+/**
+ * Primo accesso su questo telefono: il codice di recupero apre l'archivio.
+ * Riuscito, la chiave resta salvata (non esportabile) e il codice no.
+ * Un codice sbagliato solleva un errore da mostrare sotto il campo.
+ */
+export async function apriConCodice(codice: string): Promise<void> {
+  if (!archivioTrovato) throw new Error("L'archivio non è più disponibile: riapri l'app.")
+  let chiave: CryptoKey
+  try {
+    chiave = await importaChiave(codiceInChiave(codice))
+  } catch {
+    throw new Error('Il codice non è completo o contiene caratteri non validi: controllalo e riprova.')
+  }
+  try {
+    await avviaMotore(archivioTrovato.cloud, chiave, idDispositivo())
+  } catch (err) {
+    if (erroreDiChiave(err)) throw new Error("Questo codice non apre l'archivio dello studio: controllalo e riprova.")
+    erroreDiAvvio(err)
+    return
+  }
+  await salvaChiave(archivioTrovato.sessione.uid, chiave)
 }

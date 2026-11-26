@@ -263,6 +263,12 @@ export const storageService = {
     return leggiGrezzo(key)
   },
 
+  /** Tutto l'archivio, chiave → JSON serializzato: è ciò che si sincronizza su Drive. */
+  istantanea(): Record<string, string> {
+    if (modalita === 'cifrato') return Object.fromEntries(cache)
+    return Object.fromEntries(chiaviLocalStorage().map((k) => [k.slice(PREFIX.length), localStorage.getItem(k) ?? '']))
+  },
+
   /**
    * Scrive il valore grezzo di una chiave, o la rimuove se `raw` è null.
    * A differenza di `set` propaga l'eccezione: il chiamante deve poter

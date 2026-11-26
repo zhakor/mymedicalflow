@@ -6,6 +6,7 @@ import { Badge } from '../components/ui/Badge'
 import { ServiziCard } from '../features/impostazioni/ServiziCard'
 import { CopieCard } from '../features/backup/CopieCard'
 import { AggiornamentiCard } from '../features/updater/AggiornamentiCard'
+import { SincronizzazioneCard } from '../features/sincronizzazione/SincronizzazioneCard'
 import { useImpostazioniStore } from '../stores/impostazioniStore'
 import type { ImpostazioniApp, TemplateFattura } from '../types'
 import { pickDirectory } from '../lib/documentService'
@@ -278,6 +279,8 @@ export function ImpostazioniPage() {
       {/* Backup e ripristino */}
       {/* Servizi del professionista */}
       <ServiziCard onFeedback={showFeedback} />
+
+      <SincronizzazioneCard onFeedback={showFeedback} />
 
       <CopieCard onFeedback={showFeedback} />
 

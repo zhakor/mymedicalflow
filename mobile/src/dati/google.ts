@@ -15,6 +15,7 @@ import { initializeApp, type FirebaseApp } from 'firebase/app'
 import { GoogleAuthProvider, getAuth, signInWithCredential, signOut, type Auth } from 'firebase/auth'
 import { initializeFirestore, type Firestore } from 'firebase/firestore'
 import { ErroreAccesso } from '@desktop/sync/contratti'
+import { dimenticaChiave } from './chiave'
 
 const DRIVE = 'https://www.googleapis.com/auth/drive.file'
 const AMBITI = `openid email profile ${DRIVE}`
@@ -197,13 +198,21 @@ export async function sessioneRipresa(): Promise<Sessione | null> {
   return user ? { uid: user.uid, email: user.email ?? '', db, token: tokenDrive } : null
 }
 
-/** Esce dall'account: revoca il token di Drive e chiude la sessione Firebase. */
+/**
+ * Esce dall'account: revoca il token di Drive, chiude la sessione Firebase e
+ * toglie dal telefono la chiave dell'archivio (al prossimo accesso servirà di
+ * nuovo il codice di recupero).
+ */
 export async function esci(): Promise<void> {
   const t = tokenValido()
   inMemoria = null
   salvaToken(null)
   if (t) window.google?.accounts.oauth2.revoke(t.token)
-  if (firebase) await signOut(firebase.auth)
+  if (firebase) {
+    const uid = firebase.auth.currentUser?.uid
+    if (uid) await dimenticaChiave(uid)
+    await signOut(firebase.auth)
+  }
 }
 
 /** L'email dell'ultimo accesso, per proporla di nuovo a Google. */

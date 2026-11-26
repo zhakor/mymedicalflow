@@ -13,6 +13,8 @@
     "mobile:telefono": "vite --config mobile/vite.config.ts --mode fake-https",
     "mobile:google": "vite --config mobile/vite.config.ts --mode google",
     "mobile:build": "tsc -p mobile && vite build --config mobile/vite.config.ts --mode fake",
+    "mobile:build:google": "tsc -p mobile && vite build --config mobile/vite.config.ts --mode google",
+    "mobile:pubblica": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/pubblica-mobile.ps1",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",

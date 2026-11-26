@@ -264,6 +264,22 @@ Aggiunto il 26/11/2026: accesso Google della PWA (`mobile/src/dati/google.ts`, `
 
 Limite del flusso a token senza server: il token di Drive dura un'ora e i browser aprono la finestra di Google solo da un tocco, quindi il «rinnovo silenzioso» della §7.1 non è possibile. Il token sopravvive al ricaricamento della pagina (sessionStorage); scaduto, l'app chiede di toccare di nuovo «Accedi con Google». La sessione Firebase si rinnova da sola.
 
+### Altezza dello schermo nell'app aperta dalla Home (iOS 26)
+
+Misurato il 26/11/2026 su iPhone 17 (schermo 402×874 pt), app aperta dall'icona sulla Home:
+
+| | `black-translucent` (prima) | `default` (adesso) |
+|---|---|---|
+| `innerHeight`, `100dvh`, `inset: 0` | 812 | 812 |
+| `env(safe-area-inset-top)` / `bottom` | 62 / 34 | 0 / 34 |
+| finestra dell'app | da 0 a 812: fascia vuota di 62 pt in fondo | da 62 a 874: schermo pieno |
+
+Con `apple-mobile-web-app-status-bar-style: black-translucent` iOS 26 posiziona la finestra dietro la barra di stato ma le dà l'altezza di una finestra che ci sta sotto. La fascia è fuori dalla pagina: portare la pagina a `100lvh` la faceva tagliare, colorare lo sfondo dell'`html` non la cambiava. La correzione è lo stile `default`: la finestra sta sotto la barra di stato, che iOS colora con `theme-color` come la testata. iOS legge quel colore solo all'apertura della pagina (provato: cambiando tema resta il colore vecchio, riaprendo l'app prende il nuovo), quindi al cambio di tema la pagina si ricarica, come in Safari. Il tema del telefono è una scelta del dispositivo (localStorage), non dell'archivio: il ricaricamento parte subito, senza attendere il salvataggio su Drive, e il PC tiene il suo tema.
+
+Avvio più veloce: il telefono ricorda gli id delle cartelle su Drive (solo identificativi) e, con la chiave già salvata, si collega senza cercarle; la lettura del puntatore fa anche il controllo della licenza. Le cartelle si ricontrollano in sottofondo: se sono cambiate, l'apertura successiva le cerca di nuovo. Al primo avvio puntatore e cartelle si cercano in parallelo.
+
+**iOS legge queste impostazioni quando si aggiunge l'icona sulla Home**, non a ogni apertura: chi l'aveva aggiunta prima della correzione deve rimuoverla e riaggiungerla da Safari una volta.
+
 Per la Fase 2 restano:
 - il modello Word sul desktop: dopo la configurazione il suo contenuto non è più nell'archivio sincronizzato, quindi il PC ne tiene una copia locale per generare le fatture e lo ricarica su Drive (`DepositoModello.carica`) quando l'utente lo cambia nelle Impostazioni;
 - l'eliminazione dei file di archivio più vecchi delle ultime N revisioni, compito dell'adattatore Drive;

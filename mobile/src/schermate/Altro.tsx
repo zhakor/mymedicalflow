@@ -2,19 +2,18 @@ import { useState } from 'react'
 import { Moon, Sun, MonitorSmartphone, Cloud } from 'lucide-react'
 import { Button } from '@desktop/components/ui/Button'
 import { profiloService } from '@desktop/lib/profiloService'
-import { impostazioniService } from '@desktop/lib/impostazioniService'
 import { useDati } from '../dati/hooks'
 import { useSincronizzazione } from '../dati/sincronizzazione'
 import { VERSIONE } from '../versione'
+import { cambiaTema, temaScuro } from '../tema'
 
 export function Altro() {
   useDati()
   const profilo = profiloService.get()
-  const impostazioni = impostazioniService.get()
   const { revisione, aggiornatoIl, sync, simulatore } = useSincronizzazione()
   const [inviando, setInviando] = useState(false)
   const [esito, setEsito] = useState<string | null>(null)
-  const scuro = impostazioni.tema === 'dark'
+  const scuro = temaScuro()
 
   async function simula() {
     if (!simulatore) return
@@ -49,7 +48,7 @@ export function Altro() {
 
       <section className="card p-0">
         <button
-          onClick={() => impostazioniService.save({ ...impostazioni, tema: scuro ? 'light' : 'dark' })}
+          onClick={() => cambiaTema(!scuro)}
           className="w-full tocco flex items-center gap-3 px-4 py-3 text-left"
         >
           {scuro ? <Moon size={20} className="text-teal-600" /> : <Sun size={20} className="text-teal-600" />}
@@ -71,7 +70,6 @@ export function Altro() {
           {sync === 'offline' ? 'Offline' : `Revisione ${revisione ?? '—'}`}
           {aggiornatoIl && ` · ultimo controllo ${new Date(aggiornatoIl).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}
         </p>
-        <p className="text-xs text-gray-400">Il tema scelto qui vale anche sul PC: è un'impostazione dell'archivio.</p>
       </section>
 
       {simulatore && (

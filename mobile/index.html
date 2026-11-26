@@ -45,14 +45,23 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <!--
-      Installata sulla Home, l'app si estende anche dietro barra di stato e isola
-      dinamica: la testata di vetro ci scorre sotto e il suo contenuto parte
-      dopo env(safe-area-inset-top), che su iPhone 17 vale l'altezza dell'isola.
+      Installata sulla Home, l'app sta SOTTO la barra di stato ("default"), che
+      iOS colora con theme-color, come la testata. Con "black-translucent" iOS 26
+      la posizionava dietro la barra di stato ma le dava l'altezza di un'app che
+      ci sta sotto: misurati su iPhone 17 schermo 874, finestra 812, isola 62,
+      e sotto i 812 pt una fascia vuota che la pagina non può raggiungere
+      (sfondo dell'html colorato: la fascia non cambiava).
     -->
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MyMedicalFlow" />
     <meta name="robots" content="noindex" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Icona sulla Home di iPhone: quella del desktop (src-tauri/icons), su fondo
+         pieno perché iOS riempie di nero le parti trasparenti -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Manifest: senza, iOS 26 apre l'app dalla Home come segnalibro vecchio stile
+         (display-mode standalone falso) e le dà 62 pt di altezza in meno -->
+    <link rel="manifest" href="/manifest.webmanifest" />
     <title>MyMedicalFlow</title>
   </head>
   <body>

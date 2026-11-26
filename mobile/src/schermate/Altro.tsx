@@ -10,7 +10,7 @@ import { cambiaTema, temaScuro } from '../tema'
 export function Altro() {
   useDati()
   const profilo = profiloService.get()
-  const { revisione, aggiornatoIl, sync, simulatore } = useSincronizzazione()
+  const { sync, simulatore } = useSincronizzazione()
   const [inviando, setInviando] = useState(false)
   const [esito, setEsito] = useState<string | null>(null)
   const scuro = temaScuro()
@@ -67,8 +67,7 @@ export function Altro() {
           <Cloud size={18} className="text-teal-600" /> Sincronizzazione
         </h3>
         <p className="text-sm text-gray-500">
-          {sync === 'offline' ? 'Offline' : `Revisione ${revisione ?? '—'}`}
-          {aggiornatoIl && ` · ultimo controllo ${new Date(aggiornatoIl).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}
+          {sync === 'allineato' ? 'Connesso' : sync === 'in-corso' ? 'In aggiornamento…' : 'Non connesso'}
         </p>
       </section>
 

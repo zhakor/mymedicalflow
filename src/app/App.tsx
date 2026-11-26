@@ -18,7 +18,10 @@ import { inizializzaStorage } from '../lib/storageService'
 import { leggiPreferenze } from '../lib/backupService'
 import { chiaveStato } from '../lib/chiaveService'
 import { useAggiornamentoStore } from '../stores/aggiornamentoStore'
+import { avviaSincronizzazione } from '../lib/cloudService'
 import type { StatoAvvio } from '../types'
+
+const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 import type { NavRoute } from '../components/layout/Sidebar'
 
 const DURATA_SPLASH_MS = 900
@@ -100,6 +103,13 @@ export default function App() {
     if (stato !== 'ready') return
     void controllaAggiornamenti()
   }, [stato, controllaAggiornamenti])
+
+  // Sincronizzazione con Drive (CR §5), se configurata: anche lei ad app pronta
+  // e senza bloccare nulla. Senza rete le modifiche restano qui e partono dopo.
+  useEffect(() => {
+    if (stato !== 'ready' || !isTauri()) return
+    void avviaSincronizzazione()
+  }, [stato])
 
   // Quando il profilo viene completato dalla SetupPage si prosegue con la
   // configurazione delle copie, se non è ancora stata fatta.

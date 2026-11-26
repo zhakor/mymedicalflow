@@ -114,6 +114,18 @@ export class Drive {
     }
   }
 
+  /**
+   * L'archivio di una revisione passata, se è ancora su Drive. Serve al
+   * desktop che non ha la base salvata (CR §5.1): la revisione 1 è l'archivio
+   * caricato alla configurazione.
+   */
+  async archivioDellaRevisione(cartelle: Cartelle, revisione: number): Promise<string | null> {
+    const trovati = await this.cerca(
+      `'${cartelle.archivio}' in parents and ${condizione('mmf_type', 'archivio')} and ${condizione('mmf_rev', String(revisione))}`,
+    )
+    return trovati[0]?.id ?? null
+  }
+
   /** Il modello Word in chiaro in `template/`: uno solo, sostituito a ogni caricamento. */
   modello(cartelle: Cartelle): DepositoModello {
     const trova = async () =>

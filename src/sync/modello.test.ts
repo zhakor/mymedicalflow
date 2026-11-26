@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { base64InByte, byteInBase64, estraiModello } from './modello'
+import { base64InByte, byteInBase64, estraiModello, reinserisciModello } from './modello'
 import { CloudInMemoria } from './memoria'
 import { ErroreConnessione } from './contratti'
 
@@ -31,6 +31,19 @@ describe('modello Word fra PC e Drive', () => {
       templateFattura: { nomeFile: 'Studio.docx', dimensione: 8, dataCaricamento: '2026-11-01' },
     })
     expect(senza.fatture).toBe('[]')
+  })
+
+  it('un archivio arrivato dal cloud riprende il modello completo del PC, e il giro estrai-reinserisci è neutro', () => {
+    const modelloPc = { nomeFile: 'Studio.docx', dimensione: 8, dataCaricamento: '2026-11-01', contenuto: byteInBase64(DOCX) }
+    const locale = { pazienti: '[]', impostazioni: impostazioni(modelloPc) }
+    const { archivio: senza } = estraiModello(locale)
+    const arrivato = { ...senza, pazienti: '[{"id":"p1"}]', impostazioni: JSON.stringify({ ...JSON.parse(senza.impostazioni), tema: 'light' }) }
+
+    const unito = reinserisciModello(arrivato, locale)
+    expect(JSON.parse(unito.impostazioni)).toEqual({ tema: 'light', templateFattura: modelloPc })
+    expect(unito.pazienti).toBe('[{"id":"p1"}]')
+    expect(reinserisciModello(senza, locale)).toEqual(locale)
+    expect(reinserisciModello(arrivato, { impostazioni: impostazioni() })).toBe(arrivato)
   })
 
   it('senza modello caricato sul PC l\'archivio resta com\'è', () => {

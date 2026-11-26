@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import { CloudUpload, LogOut, RefreshCw, Smartphone } from 'lucide-react'
+import { Check, Cloud, CloudUpload, LogOut, RefreshCw, Smartphone } from 'lucide-react'
 import {
   accediGoogle,
   accountCollegato,
   configuraSincronizzazione,
   esciGoogle,
   leggiConfigurazione,
+  riprovaSincronizzazione,
   type AccountGoogle,
 } from '../../lib/cloudService'
+import { useSincronizzazioneStore, type StatoSync } from '../../stores/sincronizzazioneStore'
 
 interface SincronizzazioneCardProps {
   onFeedback: (testo: string, tipo?: 'success' | 'error') => void
@@ -18,6 +20,25 @@ interface SincronizzazioneCardProps {
 const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
 const messaggio = (err: unknown) => (err instanceof Error ? err.message : String(err))
+
+/** Lo stato in parole: connesso, in aggiornamento, non connesso (o cosa serve per ripartire). */
+function statoInParole(stato: StatoSync): { testo: string; tono: 'ok' | 'attesa' | 'problema' } {
+  switch (stato) {
+    case 'allineato':
+      return { testo: 'Connesso: i dati sono allineati con il telefono.', tono: 'ok' }
+    case 'in-corso':
+    case 'avvio':
+      return { testo: 'In aggiornamento…', tono: 'attesa' }
+    case 'offline':
+      return { testo: 'Non connesso: le modifiche restano su questo PC e partono al ritorno della rete.', tono: 'attesa' }
+    case 'accesso':
+      return { testo: "Non connesso: l'accesso a Google è scaduto, accedi di nuovo.", tono: 'problema' }
+    case 'errore':
+      return { testo: 'Non connesso: la sincronizzazione si è interrotta.', tono: 'problema' }
+    default:
+      return { testo: 'Non connesso.', tono: 'attesa' }
+  }
+}
 
 /**
  * «App mobile e sincronizzazione» (CR §8): accesso Google e configurazione
@@ -28,6 +49,7 @@ export function SincronizzazioneCard({ onFeedback }: SincronizzazioneCardProps) 
   const [configurazione, setConfigurazione] = useState(leggiConfigurazione)
   const [attesa, setAttesa] = useState<string | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
+  const sync = useSincronizzazioneStore()
 
   useEffect(() => {
     if (!isTauri()) return
@@ -48,12 +70,18 @@ export function SincronizzazioneCard({ onFeedback }: SincronizzazioneCardProps) 
     }
   }
 
-  const accedi = () => esegui("Completa l'accesso nella finestra del browser…", async () => setAccount(await accediGoogle()))
+  const accedi = () =>
+    esegui("Completa l'accesso nella finestra del browser…", async () => {
+      setAccount(await accediGoogle())
+      // Con la configurazione già fatta riparte la sincronizzazione
+      if (leggiConfigurazione()?.radice) await riprovaSincronizzazione()
+    })
 
   const configura = () =>
     esegui('Configurazione in corso…', async () => {
       const esito = await configuraSincronizzazione((p) => setAttesa(`${p}…`))
       setConfigurazione(leggiConfigurazione())
+      await riprovaSincronizzazione()
       onFeedback(
         esito.tipo === 'nuova'
           ? "Archivio caricato su Google Drive e verificato: l'app sul telefono può collegarsi."
@@ -105,6 +133,8 @@ export function SincronizzazioneCard({ onFeedback }: SincronizzazioneCardProps) 
             {configurata ? 'Verifica il collegamento' : "Carica l'archivio su Google Drive"}
           </Button>
 
+          {configurata && <StatoSincronizzazione {...sync} onAccedi={accedi} inAttesa={!!attesa} />}
+
           {configurata && (
             <div className="flex items-start gap-3 p-4 rounded-xl bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 text-sm text-teal-800 dark:text-teal-300">
               <Smartphone size={18} className="flex-shrink-0 mt-0.5" />
@@ -120,5 +150,44 @@ export function SincronizzazioneCard({ onFeedback }: SincronizzazioneCardProps) 
       {attesa && <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">{attesa}</p>}
       {errore && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{errore}</p>}
     </Card>
+  )
+}
+
+function StatoSincronizzazione({
+  stato,
+  errore,
+  onAccedi,
+  inAttesa,
+}: {
+  stato: StatoSync
+  errore: string | null
+  onAccedi: () => void
+  inAttesa: boolean
+}) {
+  const { testo, tono } = statoInParole(stato)
+  return (
+    <div
+      className={
+        tono === 'problema'
+          ? 'p-4 rounded-xl border text-sm bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300'
+          : 'p-4 rounded-xl border text-sm bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
+      }
+    >
+      <p className="flex items-center gap-2">
+        {tono === 'ok' ? <Check size={16} className="text-teal-600 flex-shrink-0" /> : <Cloud size={16} className="flex-shrink-0" />}
+        {testo}
+      </p>
+      {stato === 'errore' && errore && <p className="mt-1 text-xs opacity-80">{errore}</p>}
+      {stato === 'accesso' && (
+        <Button size="sm" className="mt-3" onClick={onAccedi} disabled={inAttesa}>
+          Accedi di nuovo
+        </Button>
+      )}
+      {stato === 'errore' && (
+        <Button size="sm" variant="secondary" className="mt-3" onClick={() => void riprovaSincronizzazione()}>
+          <RefreshCw size={14} /> Riprova
+        </Button>
+      )}
+    </div>
   )
 }

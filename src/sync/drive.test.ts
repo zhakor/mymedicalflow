@@ -137,6 +137,18 @@ describe('Drive: archivi e modello', () => {
     expect(finto.file.get(primo)!.trashed).toBe(true)
   })
 
+  it("ritrova l'archivio di una revisione passata, ma non quelli nel cestino", async () => {
+    const { drive } = nuovoDrive()
+    const cartelle = await drive.assicuraStruttura('i')
+    const deposito = drive.deposito(cartelle)
+    const primo = await deposito.carica(1, BYTE)
+    const orfano = await deposito.carica(2, BYTE)
+    await deposito.cestina(orfano)
+
+    expect(await drive.archivioDellaRevisione(cartelle, 1)).toBe(primo)
+    expect(await drive.archivioDellaRevisione(cartelle, 2)).toBeNull()
+  })
+
   it('il modello Word è uno solo: il secondo caricamento sostituisce il primo', async () => {
     const { finto, drive } = nuovoDrive()
     const modello = drive.modello(await drive.assicuraStruttura('i'))

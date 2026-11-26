@@ -29,10 +29,10 @@ export const TITOLI: Record<Scheda, string> = {
 function IndicatoreSync() {
   const sync = useSincronizzazione((s) => s.sync)
   const voce = {
-    allineato: { icona: <Cloud size={14} />, testo: 'Aggiornato', classi: 'text-teal-700 dark:text-teal-400' },
-    'in-corso': { icona: <RefreshCw size={14} className="animate-spin" />, testo: 'Salvataggio…', classi: 'text-gray-500' },
-    offline: { icona: <CloudOff size={14} />, testo: 'Offline', classi: 'text-amber-600' },
-    errore: { icona: <AlertTriangle size={14} />, testo: 'Errore', classi: 'text-red-600' },
+    allineato: { icona: <Cloud size={14} />, testo: 'Connesso', classi: 'text-teal-700 dark:text-teal-400' },
+    'in-corso': { icona: <RefreshCw size={14} className="animate-spin" />, testo: 'In aggiornamento…', classi: 'text-gray-500' },
+    offline: { icona: <CloudOff size={14} />, testo: 'Non connesso', classi: 'text-amber-600' },
+    errore: { icona: <AlertTriangle size={14} />, testo: 'Non connesso', classi: 'text-red-600' },
   }[sync]
   return (
     <AnimatePresence mode="wait" initial={false}>

@@ -52,3 +52,18 @@ export function estraiModello(archivio: Archivio): { archivio: Archivio; modello
     modello: { nomeFile: template.nomeFile ?? 'template-fattura.docx', dati: base64InByte(contenuto) },
   }
 }
+
+/**
+ * Sul desktop sincronizzato il modello resta nelle impostazioni locali (serve
+ * per generare le fatture) ma non viaggia nell'archivio: un archivio arrivato
+ * dal cloud, che ha solo i metadati, riprende il modello completo del PC.
+ */
+export function reinserisciModello(arrivato: Archivio, locale: Archivio): Archivio {
+  const grezzoLocale = locale[CHIAVE_IMPOSTAZIONI]
+  const grezzoArrivato = arrivato[CHIAVE_IMPOSTAZIONI]
+  if (!grezzoLocale || !grezzoArrivato) return arrivato
+  const template = (JSON.parse(grezzoLocale) as ImpostazioniConModello).templateFattura
+  if (!template?.contenuto) return arrivato
+  const impostazioni = JSON.parse(grezzoArrivato) as ImpostazioniConModello
+  return { ...arrivato, [CHIAVE_IMPOSTAZIONI]: JSON.stringify({ ...impostazioni, templateFattura: template }) }
+}

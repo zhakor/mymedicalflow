@@ -21,13 +21,21 @@ import {
   type Auth,
 } from 'firebase/auth'
 import { initializeFirestore, type Firestore } from 'firebase/firestore'
-import { codiceInChiave, importaChiave } from '../sync/cifratura'
+import { codiceInChiave, decifraArchivio, importaChiave, type Archivio } from '../sync/cifratura'
 import { ErroreAccesso, ErroreConnessione } from '../sync/contratti'
-import { Drive } from '../sync/drive'
+import { Drive, type Cartelle } from '../sync/drive'
 import { registroFirestore } from '../sync/firestore'
 import { configuraDalDesktop, type EsitoConfigurazione } from '../sync/configurazione'
+import { MotoreSincronizzazione, type EsitoSincronizzazione, type StatoSincronizzato } from '../sync/motore'
+import { estraiModello, reinserisciModello } from '../sync/modello'
 import { codiceRecupero } from './backupService'
-import { storageService } from './storageService'
+import { sostituisciArchivio, storageService, suModificaUtente } from './storageService'
+import { useSincronizzazioneStore } from '../stores/sincronizzazioneStore'
+import { useProfiloStore } from '../stores/profiloStore'
+import { useImpostazioniStore } from '../stores/impostazioniStore'
+import { usePazienteStore } from '../stores/pazienteStore'
+import { useAppuntamentoStore } from '../stores/appuntamentoStore'
+import { useFatturaStore } from '../stores/fatturaStore'
 
 // ─── Errori dal backend ──────────────────────────────────────────────────────
 
@@ -92,6 +100,7 @@ export async function accountCollegato(): Promise<AccountGoogle | null> {
 }
 
 export async function esciGoogle(): Promise<void> {
+  fermaSincronizzazione()
   await backend<void>('google_esci')
   if (firebase) await signOut(firebase.auth)
   // L'id dell'installazione resta: è il marcatore della radice che questo PC
@@ -148,4 +157,170 @@ export async function configuraSincronizzazione(passo?: (descrizione: string) =>
   })
   salvaConfigurazione({ istanza, radice: esito.radice, email: account.email, configurataIl: new Date().toISOString() })
   return esito
+}
+
+// ─── Sincronizzazione continua (CR §5) ───────────────────────────────────────
+
+const imposta = useSincronizzazioneStore.setState
+
+let attiva: { smetti: () => void } | null = null
+let avvio: Promise<void> | null = null
+
+/**
+ * Collega il PC all'archivio su Drive e lo tiene allineato: pubblica le
+ * modifiche fatte qui e porta dentro, in tempo reale, quelle del telefono.
+ * Non fa nulla se la sincronizzazione non è configurata. Si può chiamare più
+ * volte: parte una sola volta.
+ */
+export function avviaSincronizzazione(): Promise<void> {
+  if (attiva) return Promise.resolve()
+  avvio ??= collegaMotore().finally(() => (avvio = null))
+  return avvio
+}
+
+export function fermaSincronizzazione(): void {
+  attiva?.smetti()
+  attiva = null
+  imposta({ stato: 'spenta', revisione: null })
+}
+
+/** Ripresa dopo un errore o un nuovo accesso (pulsante nella scheda). */
+export async function riprovaSincronizzazione(): Promise<void> {
+  fermaSincronizzazione()
+  await avviaSincronizzazione()
+}
+
+/** L'archivio del PC come va sul cloud: il modello Word resta fuori (sta in `template/`). */
+const archivioDaPubblicare = (): Archivio => estraiModello(storageService.istantanea()).archivio
+
+/** Firma del modello Word del PC: cambia quando se ne carica un altro nelle Impostazioni. */
+function firmaModello(): string {
+  const t = useImpostazioniStore.getState().impostazioni.templateFattura
+  return t ? `${t.nomeFile}|${t.dimensione}|${t.dataCaricamento}` : ''
+}
+
+/** Dopo un archivio arrivato dal cloud le schermate rileggono i dati (filtri e pagine restano). */
+function ricaricaSchermate(): void {
+  useProfiloStore.getState().caricaProfilo()
+  useImpostazioniStore.getState().caricaImpostazioni()
+  usePazienteStore.getState().loadPatients()
+  useAppuntamentoStore.getState().loadAppointments()
+  useFatturaStore.getState().loadInvoices()
+}
+
+async function leggiBase(): Promise<StatoSincronizzato | null> {
+  const testo = await backend<string | null>('sync_base_load')
+  return testo ? (JSON.parse(testo) as StatoSincronizzato) : null
+}
+
+const salvaBase = (stato: StatoSincronizzato) => backend<void>('sync_base_save', { data: JSON.stringify(stato) })
+
+/**
+ * Senza base salvata (configurazione fatta prima di questa versione) la base
+ * è l'archivio caricato alla configurazione, la revisione 1: così ciò che il
+ * telefono ha fatto da allora arriva come modifica sua, non come cancellazione
+ * del PC. Se non c'è più, l'archivio attuale del PC.
+ */
+async function baseIniziale(drive: Drive, cartelle: Cartelle, chiave: CryptoKey): Promise<StatoSincronizzato> {
+  const id = await drive.archivioDellaRevisione(cartelle, 1)
+  if (id) {
+    try {
+      return { base: await decifraArchivio(await drive.deposito(cartelle).scarica(id), chiave), revisione: 1 }
+    } catch {
+      // Illeggibile: si ripiega sull'archivio del PC
+    }
+  }
+  return { base: archivioDaPubblicare(), revisione: 1 }
+}
+
+function registraEsito(esito: EsitoSincronizzazione): void {
+  if (esito.tipo === 'offline') imposta({ stato: 'offline', errore: null })
+  else imposta({ stato: 'allineato', revisione: esito.revisione, aggiornatoIl: new Date().toISOString(), errore: null })
+}
+
+function registraErrore(err: unknown): void {
+  console.error('[sincronizzazione]', err)
+  const errore = err instanceof Error ? err.message : String(err)
+  if (err instanceof ErroreAccesso) imposta({ stato: 'accesso', errore })
+  else if (err instanceof ErroreConnessione) imposta({ stato: 'offline', errore: null })
+  else imposta({ stato: 'errore', errore })
+}
+
+async function collegaMotore(): Promise<void> {
+  const config = leggiConfigurazione()
+  if (!config?.radice) return
+  imposta({ stato: 'avvio', errore: null })
+  try {
+    const account = await accountCollegato()
+    if (!account) throw new ErroreAccesso('Accedi con Google per riprendere la sincronizzazione.')
+    const drive = new Drive({ token: tokenDrive })
+    const cartelle = await drive.trovaStruttura(config.radice)
+    if (!cartelle) throw new Error("La cartella MyMedicalFlow su Drive non c'è più: rifai la configurazione.")
+    const chiave = await importaChiave(codiceInChiave(await codiceRecupero()))
+    const statoIniziale = (await leggiBase()) ?? (await baseIniziale(drive, cartelle, chiave))
+    const modello = drive.modello(cartelle)
+
+    const motore = new MotoreSincronizzazione({
+      deposito: drive.deposito(cartelle),
+      registro: registroFirestore(avviaFirebase().db, account.uid, { onErrore: registraErrore }),
+      chiave,
+      dispositivo: config.istanza,
+      statoIniziale,
+      leggiLocale: archivioDaPubblicare,
+      scriviLocale: (arrivato) => {
+        // Arriva senza il modello Word: si riprende quello del PC. La cache
+        // cambia subito, la scrittura su disco segue.
+        sostituisciArchivio(JSON.stringify(reinserisciModello(arrivato, storageService.istantanea()))).catch(
+          registraErrore,
+        )
+        ricaricaSchermate()
+      },
+      salvaStato: salvaBase,
+      // TODO Fase 3: finestra dei conflitti. Per ora prevale l'altro dispositivo.
+      risolviConflitti: async () => new Map(),
+      onEsito: registraEsito,
+      onErrore: registraErrore,
+    })
+
+    const sincronizza = () => {
+      imposta({ stato: 'in-corso' })
+      motore.sincronizza().catch(registraErrore)
+    }
+
+    // Primo allineamento: porta dentro quanto fatto dal telefono a PC spento
+    imposta({ stato: 'in-corso' })
+    registraEsito(await motore.sincronizza({ fresco: true }))
+
+    let firma = firmaModello()
+    let attesa: ReturnType<typeof setTimeout> | undefined
+    const smettiModifiche = suModificaUtente(() => {
+      imposta({ stato: 'in-corso' })
+      clearTimeout(attesa)
+      attesa = setTimeout(() => {
+        // Modello Word cambiato nelle Impostazioni: va su Drive per il telefono
+        const nuova = firmaModello()
+        const { modello: file } = estraiModello(storageService.istantanea())
+        if (nuova !== firma && file) {
+          modello
+            .carica(file)
+            .then(() => (firma = nuova))
+            .catch(registraErrore)
+        }
+        sincronizza()
+      }, 300)
+    })
+    const smettiAscolto = motore.ascolta()
+    window.addEventListener('online', sincronizza)
+
+    attiva = {
+      smetti: () => {
+        clearTimeout(attesa)
+        smettiModifiche()
+        smettiAscolto()
+        window.removeEventListener('online', sincronizza)
+      },
+    }
+  } catch (err) {
+    registraErrore(err)
+  }
 }

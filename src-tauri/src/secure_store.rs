@@ -358,6 +358,35 @@ pub fn save(app: &tauri::AppHandle, data: &str) -> Result<(), String> {
     scrivi_atomico(&percorso_archivio(app)?, &cifrato)
 }
 
+// ─── Base della sincronizzazione ──────────────────────────────────────────────
+
+/// Ultima versione dell'archivio allineata con il cloud (CR §5.1), con la sua
+/// revisione: serve alla fusione a tre vie dopo un periodo offline o ad app
+/// chiusa. Cifrata con la stessa chiave dell'archivio, accanto a lui.
+const FILE_BASE_SYNC: &str = "sync-base.dat";
+
+pub fn base_sync_load(app: &tauri::AppHandle) -> Result<Option<String>, String> {
+    let percorso = cartella_dati(app)?.join(FILE_BASE_SYNC);
+    if !percorso.exists() {
+        return Ok(None);
+    }
+    let raw = std::fs::read(&percorso).map_err(|e| format!("lettura base sincronizzazione: {e}"))?;
+    let chiaro = crypto::decifra(&raw, &chiave(app)?)?;
+    String::from_utf8(chiaro)
+        .map(Some)
+        .map_err(|e| format!("base sincronizzazione non leggibile: {e}"))
+}
+
+/// `None` la cancella (sincronizzazione disattivata).
+pub fn base_sync_save(app: &tauri::AppHandle, data: Option<&str>) -> Result<(), String> {
+    let percorso = cartella_dati(app)?.join(FILE_BASE_SYNC);
+    match data {
+        Some(d) => scrivi_atomico(&percorso, &crypto::cifra(d.as_bytes(), &chiave(app)?)?),
+        None if percorso.exists() => std::fs::remove_file(&percorso).map_err(|e| e.to_string()),
+        None => Ok(()),
+    }
+}
+
 // ─── Copie di sicurezza ───────────────────────────────────────────────────────
 
 #[derive(serde::Serialize)]

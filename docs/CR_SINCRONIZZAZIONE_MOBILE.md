@@ -264,6 +264,9 @@ Aggiunto il 26/11/2026: accesso Google della PWA (`mobile/src/dati/google.ts`, `
 
 Limite del flusso a token senza server: il token di Drive dura un'ora e i browser aprono la finestra di Google solo da un tocco, quindi il «rinnovo silenzioso» della §7.1 non è possibile. Il token sopravvive al ricaricamento della pagina (sessionStorage); scaduto, l'app chiede di toccare di nuovo «Accedi con Google». La sessione Firebase si rinnova da sola.
 
+Aggiunto il 26/11/2026: sincronizzazione continua del desktop (`src/lib/cloudService.ts`). All'apertura, se configurata, il PC si collega con il motore del nucleo, porta dentro quanto fatto dal telefono, ascolta Firestore e pubblica i salvataggi locali (300 ms dopo l'ultima modifica). La base (§5.1) è in `sync-base.dat`, cifrata con la chiave dell'archivio; senza base, configurazione fatta prima di questa versione, si usa la revisione 1 ancora su Drive, così le modifiche del telefono non sembrano cancellazioni del PC. Il modello Word resta nelle impostazioni del PC e fuori dall'archivio (`reinserisciModello`), e va su Drive quando cambia. Lo stato si mostra solo come Connesso, In aggiornamento o Non connesso, su desktop e telefono. Provato: il paziente aggiunto dal telefono a PC chiuso compare all'avvio.
+Ancora da fare sul desktop: le fatture emesse dal PC non passano da `Fatturazione` (§6.1) e offline non diventano bozze (§6.2).
+
 ### Altezza dello schermo nell'app aperta dalla Home (iOS 26)
 
 Misurato il 26/11/2026 su iPhone 17 (schermo 402×874 pt), app aperta dall'icona sulla Home:

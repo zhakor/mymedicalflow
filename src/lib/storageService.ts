@@ -68,15 +68,31 @@ function leggiGrezzo(key: string): string | null {
   return localStorage.getItem(PREFIX + key)
 }
 
+/**
+ * Chi vuole sapere delle modifiche fatte da chi usa l'app (la sincronizzazione,
+ * per pubblicarle). Non scattano per `sostituisciArchivio`, che porta dentro
+ * versioni arrivate da fuori (copia di sicurezza, cloud).
+ */
+const allaModifica = new Set<() => void>()
+
+export function suModificaUtente(callback: () => void): () => void {
+  allaModifica.add(callback)
+  return () => allaModifica.delete(callback)
+}
+
+const modificato = () => allaModifica.forEach((f) => f())
+
 function scriviGrezzo(key: string, raw: string | null): void {
   if (modalita === 'cifrato') {
     if (raw === null) cache.delete(key)
     else cache.set(key, raw)
     persisti()
+    modificato()
     return
   }
   if (raw === null) localStorage.removeItem(PREFIX + key)
   else localStorage.setItem(PREFIX + key, raw)
+  modificato()
 }
 
 function chiaviLocalStorage(): string[] {

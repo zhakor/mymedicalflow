@@ -105,6 +105,16 @@ fn secure_store_save(app: tauri::AppHandle, data: String) -> Result<(), String> 
     secure_store::save(&app, &data)
 }
 
+#[tauri::command]
+fn sync_base_load(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    secure_store::base_sync_load(&app)
+}
+
+#[tauri::command]
+fn sync_base_save(app: tauri::AppHandle, data: Option<String>) -> Result<(), String> {
+    secure_store::base_sync_save(&app, data.as_deref())
+}
+
 // ─── Codice di recupero ───────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -214,6 +224,8 @@ pub fn run() {
             save_text_file,
             secure_store_load,
             secure_store_save,
+            sync_base_load,
+            sync_base_save,
             codice_recupero,
             chiave_stato,
             chiave_recupera_da_codice,

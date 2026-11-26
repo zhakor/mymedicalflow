@@ -9,6 +9,10 @@
  *   fake        Drive e Firestore simulati in memoria, nessun login (sviluppo)
  *   fake-https  come fake, in HTTPS sulla rete locale per provarla sul telefono:
  *               la WebCrypto funziona solo in un contesto sicuro
+ *   google      Drive e Firestore veri, dopo l'accesso con Google. La
+ *               configurazione è in `.env.local` nella radice del repository;
+ *               Google accetta l'accesso solo da http://localhost:5180 o da un
+ *               dominio https registrato, mai da un indirizzo IP
  */
 
 import { defineConfig } from 'vite'
@@ -34,6 +38,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     root: __dirname,
+    // Le variabili (Firebase, client OAuth) sono condivise col desktop
+    envDir: path.resolve(__dirname, '..'),
     define: {
       __VERSIONE_APP__: JSON.stringify(`${commitCorrente()} · ${avvio}`),
     },
@@ -44,7 +50,7 @@ export default defineConfig(({ mode }) => {
     // Preparate all'avvio del server: se Vite le scoprisse al primo caricamento
     // del telefono, ricompilerebbe a pagina aperta lasciandola a metà.
     optimizeDeps: {
-      include: ['react', 'react-dom', 'react-dom/client', 'motion/react', 'zustand', 'lucide-react', 'clsx', 'pizzip', 'docxtemplater'],
+      include: ['react', 'react-dom', 'react-dom/client', 'motion/react', 'zustand', 'lucide-react', 'clsx', 'pizzip', 'docxtemplater', 'firebase/app', 'firebase/auth', 'firebase/firestore'],
       esbuildOptions: { target: 'safari15' },
     },
     // JavaScript comprensibile anche dai Safari meno recenti (iOS 15+)

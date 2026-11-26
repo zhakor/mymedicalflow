@@ -260,6 +260,10 @@ Aggiunto il 26/11/2026: `firestore.ts`, adattatore Firestore per `Registro` (let
 
 Ogni operazione su `archivi/{uid}` costa una lettura in più per la licenza letta dalle regole: resta molto al di sotto delle quote (§12).
 
+Aggiunto il 26/11/2026: accesso Google della PWA (`mobile/src/dati/google.ts`, `npm run mobile:google`). Google Identity Services dà il token di Drive (`drive.file`), lo stesso token apre la sessione Firebase; poi licenza (lettura del puntatore attraverso le regole) e ricerca dell'archivio su Drive, con le schermate «Licenza non attiva», «Configura prima dal PC» e «Archivio trovato». Provato con l'account vero: accesso, licenza e ricerca su Drive funzionano fino a «Configura prima dal PC». Il codice di recupero e il collegamento ai dati veri attendono la configurazione dal desktop (§8).
+
+Limite del flusso a token senza server: il token di Drive dura un'ora e i browser aprono la finestra di Google solo da un tocco, quindi il «rinnovo silenzioso» della §7.1 non è possibile. Il token sopravvive al ricaricamento della pagina (sessionStorage); scaduto, l'app chiede di toccare di nuovo «Accedi con Google». La sessione Firebase si rinnova da sola.
+
 Per la Fase 2 restano:
 - il modello Word sul desktop: dopo la configurazione il suo contenuto non è più nell'archivio sincronizzato, quindi il PC ne tiene una copia locale per generare le fatture e lo ricarica su Drive (`DepositoModello.carica`) quando l'utente lo cambia nelle Impostazioni;
 - l'eliminazione dei file di archivio più vecchi delle ultime N revisioni, compito dell'adattatore Drive;

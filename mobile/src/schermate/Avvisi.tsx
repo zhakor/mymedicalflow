@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { WifiOff, AlertTriangle } from 'lucide-react'
 import { logoBianco, logoBlu } from '@desktop/assets/logos'
 
-function Centrato({ children }: { children: ReactNode }) {
+export function Centrato({ children }: { children: ReactNode }) {
   return (
     <div className="h-full flex flex-col items-center justify-center text-center px-8 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       {children}

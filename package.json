@@ -11,6 +11,7 @@
     "test:firestore": "firebase emulators:exec --only firestore --project demo-mmf \"vitest run src/sync/firestore.test.ts\"",
     "mobile:dev": "vite --config mobile/vite.config.ts --mode fake",
     "mobile:telefono": "vite --config mobile/vite.config.ts --mode fake-https",
+    "mobile:google": "vite --config mobile/vite.config.ts --mode google",
     "mobile:build": "tsc -p mobile && vite build --config mobile/vite.config.ts --mode fake",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",

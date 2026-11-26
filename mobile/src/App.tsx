@@ -5,7 +5,7 @@ import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { impostazioniService } from '@desktop/lib/impostazioniService'
 import { useDati, useOnline } from './dati/hooks'
 import { leggiArchivio } from './dati/archivio'
-import { avviaModalitaSimulata, useSincronizzazione } from './dati/sincronizzazione'
+import { avviaModalitaGoogle, avviaModalitaSimulata, useSincronizzazione, type FaseApp } from './dati/sincronizzazione'
 import { ripristinaPosizione, useAvvisi, useNavigazione, type Vista } from './navigazione'
 import { Layout, type Scheda } from './componenti/Layout'
 import { Home } from './schermate/Home'
@@ -18,7 +18,11 @@ import { ModuloPaziente } from './schermate/ModuloPaziente'
 import { ModuloAppuntamento } from './schermate/ModuloAppuntamento'
 import { ModuloFattura } from './schermate/ModuloFattura'
 import { Avvio, Errore, Offline } from './schermate/Avvisi'
+import { Accesso, CodiceRecupero, LicenzaNonAttiva, SenzaArchivio } from './schermate/Accesso'
 import { Sfondo, UI, USCITA } from './componenti/Movimento'
+
+/** `--mode google`: Drive e Firestore veri dopo l'accesso; altrimenti simulati in memoria. */
+const GOOGLE = import.meta.env.MODE.startsWith('google')
 
 /** Colore di fondo dell'app (--fondo-app in index.css): testata, barra di stato e documento. */
 const COLORE_TESTATA = { chiaro: '#eef4f4', scuro: '#050a0b' }
@@ -152,7 +156,7 @@ export function App() {
   useTema()
 
   useEffect(() => {
-    if (online) void avviaModalitaSimulata()
+    if (online) void (GOOGLE ? avviaModalitaGoogle() : avviaModalitaSimulata())
   }, [online])
 
   // Riaperta l'app, si torna alla cartella dov'eri appena i dati ci sono
@@ -172,9 +176,32 @@ export function App() {
   return (
     <MotionConfig reducedMotion="user">
       <Sfondo />
-      {!online ? <Offline /> : app === 'avvio' ? <Avvio /> : app === 'errore' ? <Errore messaggio={errore} /> : <Principale scheda={scheda} setScheda={vaiA} pila={pila} uscitaAnimata={uscitaAnimata} />}
+      {!online ? (
+        <Offline />
+      ) : app === 'pronta' ? (
+        <Principale scheda={scheda} setScheda={vaiA} pila={pila} uscitaAnimata={uscitaAnimata} />
+      ) : (
+        <PrimaDeiDati fase={app} errore={errore} />
+      )}
     </MotionConfig>
   )
+}
+
+function PrimaDeiDati({ fase, errore }: { fase: Exclude<FaseApp, 'pronta'>; errore: string | null }) {
+  switch (fase) {
+    case 'avvio':
+      return <Avvio />
+    case 'accesso':
+      return <Accesso />
+    case 'licenza':
+      return <LicenzaNonAttiva />
+    case 'senza-archivio':
+      return <SenzaArchivio />
+    case 'codice':
+      return <CodiceRecupero />
+    case 'errore':
+      return <Errore messaggio={errore} />
+  }
 }
 
 function Principale({ scheda, setScheda, pila, uscitaAnimata }: { scheda: Scheda; setScheda: (s: Scheda) => void; pila: Vista[]; uscitaAnimata: boolean }) {

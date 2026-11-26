@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Search, Phone, ChevronRight, UserX } from 'lucide-react'
+import { Search, Phone, ChevronRight, UserX, MessageCircle } from 'lucide-react'
 import { clsx } from 'clsx'
 import { motion } from 'motion/react'
 import { UI } from '../componenti/Movimento'
@@ -9,7 +9,7 @@ import { WEEKDAY_LABELS, type Patient } from '@desktop/types/paziente'
 import { useDati } from '../dati/hooks'
 import { apri } from '../navigazione'
 import { PulsanteNuovo } from '../componenti/Campi'
-import { eta, iniziali } from './formato'
+import { collegamentoWhatsApp, eta, iniziali } from './formato'
 
 /** Telefono da chiamare: quello del paziente o, per l'età evolutiva, del tutore. */
 export function telefonoDi(p: Patient): string | undefined {
@@ -79,6 +79,7 @@ export function Pazienti() {
       <ul className="px-4 pt-1 space-y-2">
         {elenco.map((p, i) => {
           const telefono = telefonoDi(p)
+          const whatsapp = telefono ? collegamentoWhatsApp(telefono) : null
           return (
             <motion.li
               key={p.id}
@@ -108,6 +109,17 @@ export function Pazienti() {
                 </span>
                 <ChevronRight size={18} className="text-gray-300 shrink-0" />
               </button>
+              {whatsapp && (
+                <a
+                  href={whatsapp}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="tocco flex items-center justify-center rounded-xl text-emerald-600 dark:text-emerald-400"
+                  aria-label={`Scrivi su WhatsApp a ${p.firstName} ${p.lastName}`}
+                >
+                  <MessageCircle size={20} />
+                </a>
+              )}
               {telefono && (
                 <a
                   href={`tel:${telefono.replace(/\s/g, '')}`}

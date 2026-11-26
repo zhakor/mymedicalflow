@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Pencil, Trash2, Phone, CalendarPlus, User, MapPin, Users, FileText, Calendar, Repeat } from 'lucide-react'
+import { Pencil, Trash2, Phone, MessageCircle, CalendarPlus, User, MapPin, Users, FileText, Calendar, Repeat } from 'lucide-react'
 import { clsx } from 'clsx'
 import { AnimatePresence } from 'motion/react'
 import { Badge } from '@desktop/components/ui/Badge'
@@ -17,7 +17,7 @@ import { apri, avvisa, chiudi } from '../navigazione'
 import { Pagina, Sezione } from '../componenti/Pagina'
 import { Conferma } from '../componenti/Conferma'
 import { VoceFattura } from '../componenti/VoceFattura'
-import { dataBreve, eta, iniziali } from './formato'
+import { collegamentoWhatsApp, dataBreve, eta, iniziali } from './formato'
 import { telefonoDi } from './Pazienti'
 
 function Dato({ etichetta, valore }: { etichetta: string; valore?: ReactNode }) {
@@ -52,6 +52,9 @@ export function Cartella({ id }: { id: string }) {
   // Come il desktop: le sedute svolte nel mese in corso, non il totale storico
   const svolteQuestoMese = riepilogoMensile(p.id, meseDi(oggi()), appuntamenti, servizi).presenti
   const telefono = telefonoDi(p)
+  const whatsapp = telefono ? collegamentoWhatsApp(telefono) : null
+  // Per l'età evolutiva senza cellulare del paziente si contatta il tutore
+  const delTutore = !!p.guardian?.phoneNumber && !p.phoneNumber
   const g = p.guardian
   const residenzaTutore = g && (g.address || g.city || g.postalCode || g.province)
 
@@ -92,18 +95,26 @@ export function Cartella({ id }: { id: string }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          {telefono ? (
-            <a href={`tel:${telefono.replace(/\s/g, '')}`} className="btn-secondary tocco flex items-center justify-center gap-2">
-              <Phone size={18} /> Chiama{p.guardian?.phoneNumber && !p.phoneNumber ? ' tutore' : ''}
+        {telefono && (
+          <div className="grid grid-cols-2 gap-3">
+            <a href={`tel:${telefono.replace(/\s/g, '')}`} className="btn-secondary tocco flex items-center justify-center gap-1.5 whitespace-nowrap px-2 text-sm">
+              <Phone size={18} /> Chiama{delTutore ? ' tutore' : ''}
             </a>
-          ) : (
-            <span />
-          )}
-          <Button className="tocco" onClick={() => apri({ tipo: 'appuntamento', pazienteId: p.id })}>
-            <CalendarPlus size={18} /> Appuntamento
-          </Button>
-        </div>
+            {whatsapp && (
+              <a
+                href={whatsapp}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary tocco flex items-center justify-center gap-1.5 whitespace-nowrap px-2 text-sm text-emerald-700 dark:text-emerald-400"
+              >
+                <MessageCircle size={18} /> WhatsApp{delTutore ? ' tutore' : ''}
+              </a>
+            )}
+          </div>
+        )}
+        <Button className="tocco w-full" onClick={() => apri({ tipo: 'appuntamento', pazienteId: p.id })}>
+          <CalendarPlus size={18} /> Nuovo appuntamento
+        </Button>
 
         <Sezione titolo="Dati anagrafici" icona={<User size={17} />}>
           <dl className="divide-y divide-gray-50 dark:divide-gray-800/60">

@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { AnimatePresence } from 'motion/react'
 import { AlertTriangle, CheckCircle2, FileText, Hash, Lock, Paperclip, Trash2 } from 'lucide-react'
 import { Button } from '@desktop/components/ui/Button'
 import { Input } from '@desktop/components/ui/Input'
@@ -38,6 +39,7 @@ import {
 import { useDati } from '../dati/hooks'
 import { emettiFattura, modelloFattura } from '../dati/sincronizzazione'
 import { Pagina } from '../componenti/Pagina'
+import { Conferma } from '../componenti/Conferma'
 import { Gruppo, Interruttore, Segmenti } from '../componenti/Campi'
 import { SelettorePaziente } from '../componenti/SelettorePaziente'
 import { Comparsa } from '../componenti/Movimento'
@@ -128,6 +130,7 @@ export function ModuloFattura({ id, pazienteId }: { id?: string; pazienteId?: st
   const [modello, setModello] = useState<StatoModello>('caricamento')
   // In modifica il documento si rigenera solo se lo si chiede: prende la data di oggi
   const [conDocumento, setConDocumento] = useState(!modifica)
+  const [eliminando, setEliminando] = useState(false)
 
   /**
    * Il Sistema TS identifica il documento con tipo, numero e data: dopo la
@@ -301,6 +304,14 @@ export function ModuloFattura({ id, pazienteId }: { id?: string; pazienteId?: st
     return documentoAttuale ? 'Resta il documento attuale.' : 'La fattura resta senza documento.'
   }
 
+  /** Come sul desktop: la fattura sparisce dall'archivio, e la sincronizzazione la toglie anche dal PC. */
+  function elimina() {
+    fatturaService.delete(originale!.id)
+    setEliminando(false)
+    avvisa('Fattura eliminata.')
+    chiudi()
+  }
+
   if (id && !originale) {
     return (
       <Pagina titolo="Fattura" ritorno="chiudi">
@@ -315,6 +326,11 @@ export function ModuloFattura({ id, pazienteId }: { id?: string; pazienteId?: st
   // In modifica il numero attuale, anche se è stato rinumerato mentre il modulo era aperto
   const numeroAttuale = originale ? (fatturaService.getById(originale.id)?.invoiceNumber ?? originale.invoiceNumber) : null
   const documentoAttuale = originale?.invoiceType === 'cartacea' && tipo === 'cartacea' ? originale.generatedFile : undefined
+  // Elettronica: l'azienda, o il paziente se manca
+  const intestatario = originale
+    ? ((originale.invoiceType === 'elettronica' && originale.azienda?.trim()) ||
+        `${originale.patientFirstName} ${originale.patientLastName}`.trim())
+    : ''
   const datiDocumentoCambiati =
     !!originale && CAMPI_DEL_DOCUMENTO.some((c) => (comeInput(originale.invoiceNumber)[c] ?? '') !== (originale[c] ?? ''))
 
@@ -324,9 +340,20 @@ export function ModuloFattura({ id, pazienteId }: { id?: string; pazienteId?: st
       ritorno="chiudi"
       piede={
         <>
-          <Button variant="secondary" className="flex-1 tocco px-3 whitespace-nowrap" onClick={chiudi} disabled={emettendo}>
-            Annulla
-          </Button>
+          {modifica ? (
+            <Button
+              variant="secondary"
+              className="flex-1 tocco px-3 whitespace-nowrap text-red-600 dark:text-red-400"
+              onClick={() => setEliminando(true)}
+              disabled={emettendo}
+            >
+              Elimina
+            </Button>
+          ) : (
+            <Button variant="secondary" className="flex-1 tocco px-3 whitespace-nowrap" onClick={chiudi} disabled={emettendo}>
+              Annulla
+            </Button>
+          )}
           <Button
             className="flex-1 tocco px-3 whitespace-nowrap"
             onClick={modifica ? salvaModifiche : emetti}
@@ -549,6 +576,21 @@ export function ModuloFattura({ id, pazienteId }: { id?: string; pazienteId?: st
           </>
         )}
       </div>
+
+      <AnimatePresence>
+        {eliminando && originale && (
+          <Conferma titolo="Elimina fattura" etichetta="Elimina" onConferma={elimina} onAnnulla={() => setEliminando(false)}>
+            Sei sicuro di voler eliminare la fattura{' '}
+            <span className="font-medium text-gray-900 dark:text-white">n° {numeroAttuale}</span>
+            {intestatario && (
+              <>
+                {' '}intestata a <span className="font-medium text-gray-900 dark:text-white">{intestatario}</span>
+              </>
+            )}
+            ?<span className="block text-red-500 text-xs mt-1">Questa azione non può essere annullata.</span>
+          </Conferma>
+        )}
+      </AnimatePresence>
     </Pagina>
   )
 }

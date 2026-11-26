@@ -15,9 +15,7 @@ import {
   type DepositoFile,
   type Puntatore,
   type Registro,
-  type Richiesta,
   type StatoRegistro,
-  type Turno,
 } from './contratti'
 
 export interface Connessione {
@@ -29,25 +27,14 @@ export interface Connessione {
 export class CloudInMemoria {
   readonly file = new Map<string, Byte>()
   puntatore: Puntatore | null = null
-  turno: Turno | null = null
-  richiesta: Richiesta | null = null
   /** Consumo Firestore simulato. */
   readonly consumo = { letture: 0, scritture: 0 }
 
   private ascoltatori = new Set<{ callback: (s: StatoRegistro) => void; connessione: Connessione }>()
   private contatore = 0
-  private orologio = 0
 
   private stato(): StatoRegistro {
-    return {
-      puntatore: this.puntatore ? { ...this.puntatore } : null,
-      turno: this.turno ? { ...this.turno } : null,
-      richiesta: this.richiesta ? { ...this.richiesta } : null,
-    }
-  }
-
-  private adesso(): string {
-    return new Date(Date.UTC(2026, 10, 25, 9, 0, ++this.orologio)).toISOString()
+    return { puntatore: this.puntatore ? { ...this.puntatore } : null }
   }
 
   /** Una scrittura: come Firestore, la notifica arriva in modo asincrono a chi è collegato. */
@@ -116,42 +103,6 @@ export class CloudInMemoria {
           queueMicrotask(() => callback(stato))
         }
         return () => this.ascoltatori.delete(voce)
-      },
-      prendiTurno: async (dispositivo) => {
-        transazione()
-        if (this.turno?.dispositivo === dispositivo) return true
-        if (this.turno) return false
-        this.turno = { dispositivo, dal: this.adesso() }
-        if (this.richiesta?.dispositivo === dispositivo) this.richiesta = null
-        this.scritto()
-        return true
-      },
-      cediTurno: async (da, a) => {
-        transazione()
-        if (this.turno?.dispositivo !== da) return false
-        this.turno = a === null ? null : { dispositivo: a, dal: this.adesso() }
-        this.richiesta = null
-        this.scritto()
-        return true
-      },
-      chiediTurno: async (dispositivo) => {
-        transazione()
-        if (!this.turno || this.turno.dispositivo === dispositivo) {
-          if (!this.turno) {
-            this.turno = { dispositivo, dal: this.adesso() }
-            this.scritto()
-          }
-          return 'preso'
-        }
-        this.richiesta = { dispositivo, il: this.adesso() }
-        this.scritto()
-        return 'richiesto'
-      },
-      annullaRichiesta: async (dispositivo) => {
-        transazione()
-        if (this.richiesta?.dispositivo !== dispositivo) return
-        this.richiesta = null
-        this.scritto()
       },
     }
 

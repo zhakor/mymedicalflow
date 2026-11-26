@@ -156,8 +156,8 @@ export class MotoreSincronizzazione {
 
   /**
    * Sincronizza a ogni nuova revisione pubblicata da un altro dispositivo.
-   * È l'unico ascolto del documento: `ancheA` riceve lo stesso stato (per il
-   * turno di fatturazione) senza aprire un secondo ascolto.
+   * È l'unico ascolto del documento: `ancheA` riceve lo stesso stato (per le
+   * bozze di fattura) senza aprire un secondo ascolto.
    */
   ascolta(ancheA?: (stato: StatoRegistro) => void): () => void {
     this.inAscolto = true

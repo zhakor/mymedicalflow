@@ -64,9 +64,7 @@ Il mio Drive/
 ### 4.2 Firestore
 
 ```text
-archivi/{uid}          { puntatore: { revisione, fileId, dispositivo, aggiornatoIl },
-                         turno: { dispositivo, dal } | null,
-                         richiesta: { dispositivo, il } | null }
+archivi/{uid}          { puntatore: { revisione, fileId, dispositivo, aggiornatoIl } }
 licenze/{email}        { attiva, scadenza?, note? }
 ```
 
@@ -117,7 +115,7 @@ Per ogni chiave array si confrontano i record per `id`, rispetto alla `base`:
 
 ### 5.4 Desktop offline
 
-Le modifiche si accumulano nell'archivio `locale` (la "coda" è la differenza fra `locale` e `base`). Al ritorno della rete il ciclo §5.2 parte da solo, con fusione ed eventuali conflitti. Le fatture seguono il turno di fatturazione (§6.1).
+Le modifiche si accumulano nell'archivio `locale` (la "coda" è la differenza fra `locale` e `base`). Al ritorno della rete il ciclo §5.2 parte da solo, con fusione ed eventuali conflitti. Offline il PC non numera le fatture: le salva come bozze (§6.2).
 
 ### 5.5 Mobile
 
@@ -132,36 +130,36 @@ Sono le operazioni in cui un dato non aggiornato produce un errore che non si co
 
 Procedura generale: prima dell'operazione si **sincronizza in modo bloccante** rileggendo il documento Firestore (`allineaPerOperazioneDelicata`). Dopo il salvataggio si attende la pubblicazione e **solo allora** si genera il `.docx`.
 
-### 6.1 Turno di fatturazione (D2)
+### 6.1 Fatturazione da più dispositivi (D2, rivista il 26/11/2026)
 
-La numerazione è una sola serie `NUM/ANNO`, quindi **un solo dispositivo alla volta** può assegnare i numeri. Lo stabilisce il campo `turno` del documento Firestore, che si prende e si cede solo con transazioni. Codice: `src/sync/turno.ts`.
+La numerazione è una sola serie `NUM/ANNO`, ma **nessun dispositivo blocca l'altro**: online desktop e telefono fatturano quando vogliono, anche insieme. Il turno di fatturazione (un dispositivo alla volta) è stato tolto. Codice: `src/sync/fatturazione.ts`.
 
-| Situazione | Chi ha il turno | Desktop | Telefono |
-|---|---|---|---|
-| PC aperto, online o offline | desktop (lo prende all'avvio e lo tiene) | fattura sempre | chiede il turno |
-| PC online e il telefono lo chiede | il desktop lo cede da solo se non ha nulla da pubblicare | attende qualche secondo | fattura, pubblica, libera il turno |
-| PC chiuso dopo aver sincronizzato | nessuno | — | fattura subito |
-| PC offline o chiuso con fatture non caricate | desktop | fattura | **bloccato** dopo 8 s: «collega il PC a internet» |
-| PC avviato offline dopo una chiusura normale | nessuno (lo aveva liberato) | non numera: salva una **bozza** (§6.2) | fattura |
+| Situazione | Desktop | Telefono |
+|---|---|---|
+| Entrambi online, anche aperti insieme | fattura | fattura |
+| PC offline | salva una **bozza** (§6.2) | fattura |
+| PC chiuso | — | fattura |
+| Telefono offline | fattura | bloccato come tutta l'app (§5.5) |
 
-Regole che garantiscono i numeri giusti (ognuna coperta da un test):
-- Chi ha il turno sincronizza **prima** di calcolare il numero: il PC che riprende il turno dal telefono vede subito la sua ultima fattura.
-- Il telefono libera il turno solo **dopo** aver pubblicato la fattura. Se la rete cade a metà lo tiene, e lo restituisce da solo appena la fattura è pubblicata.
-- Il desktop cede il turno solo se online e senza modifiche da pubblicare, e mai mentre sta emettendo una fattura.
-- Lo stato "tengo il turno" del desktop è salvato su disco: chiuso offline con fatture in sospeso, al riavvio fattura ancora.
+Come restano unici i numeri (ogni regola è coperta da un test):
+- Prima di calcolare il numero si **scarica l'ultima versione** dal cloud (`allineaPerOperazioneDelicata`): il PC che fattura subito dopo il telefono vede già la sua fattura.
+- Subito dopo il salvataggio la fattura si **pubblica**, con la transazione condizionata alla revisione (§5.2).
+- **Priorità in caso di numero doppio**: se due dispositivi calcolano lo stesso numero nello stesso istante, lo tiene la fattura **pubblicata per prima**. L'altra prende il primo numero libero (`rinumeraFattureDuplicate`) **prima di essere mostrata**: `usa` termina solo a pubblicazione avvenuta, quindi un numero già mostrato non cambia mai e il `.docx` si genera col numero definitivo.
+- Offline non si numera: niente numeri doppi da fatture emesse senza vedere quelle dell'altro dispositivo.
+- Unico caso residuo: la rete cade proprio fra il salvataggio e la pubblicazione. La fattura resta in coda; se nel frattempo l'altro dispositivo ha usato quel numero, al ritorno della rete passa al primo numero libero e il motore lo segnala (`rinumerate` in `onEsito`) perché il documento va rifatto.
 - Il numero si calcola al momento del **salvataggio**, non all'apertura del modulo: va adeguato `FatturaModal` (Fase 2).
-- La rinumerazione delle fatture doppie (§5.3) resta solo come rete di sicurezza.
+
+Perché le bozze e non «numero subito anche offline»: con due dispositivi che numerano senza vedersi, nessuna regola di priorità mantiene il registro in ordine. Chi perde il numero finisce in coda, con una data che non torna rispetto ai numeri vicini, e il documento magari già consegnato va rifatto.
 
 ### 6.2 Bozze "da numerare" (D5)
 
-Solo nel caso «PC avviato offline dopo una chiusura normale» il PC non può verificare sul cloud se di notte il telefono ha fatturato. Un software professionale non chiede all'utente di ricordarlo: **attende la verifica**. Codice: `src/sync/bozze.ts` e opzione `bozze` di `TurnoFatturazione`.
+Il PC offline non può sapere se intanto il telefono ha fatturato, quindi **non numera**: la fattura si compila e si salva come bozza. Codice: `src/sync/bozze.ts` e opzione `bozze` di `Fatturazione`.
 
-- Il tentativo di emettere solleva `TurnoNonDisponibile('verifica-necessaria')` con il messaggio: «Fatturazione in attesa di verifica con il cloud: collega il PC a internet, anche tramite l'hotspot del telefono. Intanto puoi salvare la fattura come bozza: verrà numerata appena torna la connessione.»
-- **Il pulsante «Salva come bozza» esiste solo in questo caso.** Online, o offline con il turno, la fattura si emette normalmente e la bozza non compare.
-- Alla prima notifica Firestore dopo la riconnessione il PC prende il turno, scarica l'archivio dal cloud e numera le bozze in ordine di creazione, dopo l'ultima fattura emessa (anche dal telefono). Poi pubblica e genera i `.docx`.
+- Il tentativo di emettere offline solleva `FatturazioneOffline` con il messaggio: «Per numerare la fattura serve la connessione: collega il PC a internet, anche tramite l'hotspot del telefono. Intanto puoi salvarla come bozza: verrà numerata appena torna la connessione.»
+- **Il pulsante «Salva come bozza» esiste solo offline.** Online la fattura si emette normalmente e la bozza non compare.
+- Alla prima notifica Firestore dopo la riconnessione il PC scarica l'archivio dal cloud e numera le bozze in ordine di creazione, dopo l'ultima fattura emessa (anche dal telefono). Poi pubblica e genera i `.docx`.
 - Se una fattura del telefono ha una data più recente della bozza, la bozza prende la data di numerazione, così numeri e date restano in ordine. L'utente viene avvisato (`dataSpostata`).
-- Finché ha bozze da numerare il PC non cede il turno al telefono.
-- Se il telefono fattura proprio mentre il PC si ricollega, chi arriva prima prende il numero e l'altro il successivo: numeri unici e consecutivi in ogni caso (test dedicato).
+- Se il telefono fattura proprio mentre il PC numera le bozze, vale la priorità del §6.1: numeri unici e consecutivi in ogni caso (test dedicato).
 
 Da fare in Fase 2: campo `bozza?: boolean` nel tipo `Invoice`; pulsante nel modulo fattura; elenco con l'etichetta «Bozza – in attesa di numerazione»; sul telefono le bozze del PC sono in sola lettura; avviso con i numeri assegnati alla riconnessione.
 
@@ -250,6 +248,8 @@ Il codice è in `src/sync/` e i test si lanciano con `npm test` (32 test, Vitest
 
 Aggiunto il 25/11/2026: `turno.ts` (§6.1), `bozze.ts` (§6.2), un unico ascolto condiviso da motore e turno, e la misura dei consumi Firestore nel simulatore (49 test).
 
+Cambiato il 26/11/2026: il turno è sostituito da `fatturazione.ts`. Desktop e telefono fatturano insieme senza bloccarsi, il PC offline salva bozze, e sul numero doppio vince la fattura pubblicata per prima (46 test).
+
 Per la Fase 2 restano:
 - l'eliminazione dei file di archivio più vecchi delle ultime N revisioni, compito dell'adattatore Drive;
 - il raggruppamento dei salvataggi ravvicinati (~300 ms) prima di avviare un ciclo;
@@ -262,26 +262,26 @@ Prese il 25/11/2026:
 - **D3 — Licenza sul desktop offline valida 14 giorni** dall'ultima verifica riuscita.
 - **D4 — Login Google obbligatorio per tutti** al primo avvio dopo l'aggiornamento, anche per chi non usa il mobile. Prima del rilascio le licenze delle utenti attuali vanno create su Firestore.
 
-- **D2 — Turno di fatturazione** (§6.1): una sola serie `NUM/ANNO` (requisito); il desktop fattura offline; il telefono fattura quando il PC è chiuso e sincronizzato oppure online.
+- **D2 — Fatturazione da più dispositivi** (§6.1), rivista il 26/11/2026: una sola serie `NUM/ANNO` (requisito); desktop e telefono online fatturano insieme senza bloccarsi; sul numero doppio vince la fattura pubblicata per prima, l'altra viene rinumerata prima di essere mostrata. Il PC offline salva bozze. Sostituisce il turno di fatturazione del 25/11.
 
-- **D5 — PC avviato offline dopo una chiusura normale:** la fatturazione attende la verifica sul cloud, il messaggio suggerisce l'hotspot del telefono e nel frattempo si può salvare una bozza «da numerare», disponibile solo in questo caso (§6.2).
+- **D5 — PC offline:** la fatturazione attende la connessione, il messaggio suggerisce l'hotspot del telefono e nel frattempo si può salvare una bozza «da numerare», disponibile solo offline (§6.2). Dal 26/11/2026 vale per ogni PC offline, non solo per quello avviato offline.
 
 ## 12. Consumi Firestore, velocità e privacy
 
-### Consumi misurati (simulatore che conta come Firestore, test in `turno.test.ts`)
+### Consumi misurati (simulatore che conta come Firestore, test in `fatturazione.test.ts`)
 
 | Operazione | Scritture | Letture |
 |---|---|---|
 | Sincronizzazione senza modifiche (ritorno in primo piano, controllo) | 0 | 0 |
 | Un salvataggio dal desktop con il telefono collegato | 1 | 3 (transazione + 1 notifica per dispositivo) |
-| Una fattura dal telefono con il PC acceso | 5 | 18 |
+| Una fattura (da qualunque dispositivo, con l'altro collegato) | 1 | 4 (lettura fresca, transazione, 1 notifica per dispositivo) |
 | Avvio dell'app | 0 | 1 (stato iniziale dell'ascolto) + 1 licenza |
 
-Stima prudente con **100 professionisti**, 100 salvataggi e 5 fatture dal telefono al giorno a testa: circa 12.500 scritture (limite 20.000) e 39.000 letture (limite 50.000). L'uso reale previsto (pochi utenti, qualche decina di salvataggi) ne è una piccola frazione.
+Stima prudente con **100 professionisti**, 100 salvataggi e 5 fatture dal telefono al giorno a testa: circa 10.500 scritture (limite 20.000) e 32.000 letture (limite 50.000). L'uso reale previsto (pochi utenti, qualche decina di salvataggi) ne è una piccola frazione.
 
 Regole adottate per restare nel piano gratuito:
-- **Un solo documento per utente** (puntatore, turno e richiesta) e **un solo ascolto** per dispositivo. Nessuna query, nessun ascolto di collezioni.
-- **Nessun battito periodico** né segnale di presenza: turno e rilevamento del PC offline (attesa di 8 s) non costano nulla quando non si usano.
+- **Un solo documento per utente** (il puntatore) e **un solo ascolto** per dispositivo. Nessuna query, nessun ascolto di collezioni.
+- **Nessun battito periodico** né segnale di presenza: la fatturazione non ha bisogno di sapere se l'altro dispositivo è acceso.
 - Con l'ascolto attivo il motore **non rilegge** il documento a ogni salvataggio. Usa il puntatore ricevuto: se è vecchio la transazione fallisce, e solo allora lo rilegge.
 - I dati non passano mai da Firestore: l'archivio va su Drive, che ha quote proprie molto più ampie.
 - Da fare in Fase 2: raggruppare i salvataggi ravvicinati (~300 ms) e leggere la licenza una sola volta per sessione (sul desktop vale 14 giorni).

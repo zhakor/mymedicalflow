@@ -12,7 +12,7 @@ const FILTRI: { valore: InvoiceStatus | ''; etichetta: string }[] = [
   { valore: 'pagata', etichetta: 'Pagate' },
 ]
 
-/** Registro delle fatture in consultazione. L'emissione dal telefono arriva con il turno di fatturazione. */
+/** Registro delle fatture in consultazione. L'emissione dal telefono userà `Fatturazione` del nucleo (src/sync). */
 export function Fatture() {
   useDati()
   const [stato, setStato] = useState<InvoiceStatus | ''>('')
@@ -68,7 +68,7 @@ export function Fatture() {
         </div>
       )}
 
-      <p className="text-center text-xs text-gray-400 mt-4 px-6">L'emissione di nuove fatture dal telefono arriverà con il turno di fatturazione.</p>
+      <p className="text-center text-xs text-gray-400 mt-4 px-6">L'emissione di nuove fatture dal telefono arriverà in un prossimo aggiornamento.</p>
     </div>
   )
 }

@@ -1,10 +1,10 @@
 /**
  * Bozze di fattura "da numerare" (CR §6.1, D5).
  *
- * Esistono solo in un caso: il PC è stato avviato offline dopo una chiusura
- * normale e non può verificare sul cloud se dal telefono sono state emesse
- * fatture. La fattura si compila e si salva senza numero; al ritorno della rete
- * il PC verifica sul cloud e la numera dopo l'ultima emessa.
+ * Esistono solo quando il PC è offline: non può sapere se dal telefono sono
+ * state emesse fatture, quindi non numera. La fattura si compila e si salva
+ * senza numero; al ritorno della rete il PC scarica l'archivio dal cloud e la
+ * numera dopo l'ultima emessa (`Fatturazione`, opzione `bozze`).
  *
  * La numerazione deve restare coerente con le date: se la data della bozza è
  * precedente all'ultima fattura dello stesso anno (per esempio una emessa dal

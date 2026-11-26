@@ -252,6 +252,8 @@ Cambiato il 26/11/2026: il turno è sostituito da `fatturazione.ts`. Desktop e t
 
 Aggiunto il 26/11/2026: `modello.ts` con `estraiModello` (passo 4 del §8: il modello Word esce da `impostazioni` e va su Drive in chiaro, nell'archivio restano nome, peso e data) e il contratto `DepositoModello` (51 test). Il telefono emette le fatture cartacee e, se l'utente lo lascia attivo, genera e allega il `.docx` dal modello scaricato da Drive, dopo l'emissione e quindi col numero definitivo.
 
+Fase 2 avviata il 26/11/2026: `drive.ts`, adattatore Drive REST v3 per `DepositoFile` e `DepositoModello`, solo `fetch`, con struttura a marcatori (§4.1), configurazione ripetibile (§8, passo 3), rinnovo del token su 401 ed errori di rete distinti dagli errori veri. Provato contro un Drive finto e con il motore reale sopra (8 test, 59 in tutto).
+
 Per la Fase 2 restano:
 - il modello Word sul desktop: dopo la configurazione il suo contenuto non è più nell'archivio sincronizzato, quindi il PC ne tiene una copia locale per generare le fatture e lo ricarica su Drive (`DepositoModello.carica`) quando l'utente lo cambia nelle Impostazioni;
 - l'eliminazione dei file di archivio più vecchi delle ultime N revisioni, compito dell'adattatore Drive;

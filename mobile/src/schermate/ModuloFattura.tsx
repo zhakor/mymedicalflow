@@ -1,21 +1,27 @@
 /**
- * Emissione di una fattura dal telefono, con le regole del modulo desktop
- * (`FatturaModal`): stessi campi, stessa validazione, bollo automatico.
+ * Emissione e modifica di una fattura dal telefono, con le regole del modulo
+ * desktop (`FatturaModal`): stessi campi, stessa validazione, bollo automatico,
+ * tipo e data bloccati dopo la trasmissione al Sistema TS.
  *
  * Differenza voluta: il numero NON si sceglie. Lo assegna `emettiFattura` al
  * momento dell'emissione, sui dati appena scaricati dal cloud, così PC e
  * telefono possono fatturare insieme (CR §6.1). Il documento Word, se voluto,
  * si genera dopo, col numero definitivo, dal modello che il PC ha caricato su
  * Drive alla configurazione (CR §8).
+ *
+ * In modifica il numero resta quello assegnato: cambiarlo a mano romperebbe la
+ * numerazione condivisa. Il documento si rigenera solo se richiesto, perché
+ * prende anche la data di oggi.
  */
 
 import { useEffect, useState } from 'react'
-import { AlertTriangle, CheckCircle2, FileText, Hash, Paperclip, Trash2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, FileText, Hash, Lock, Paperclip, Trash2 } from 'lucide-react'
 import { Button } from '@desktop/components/ui/Button'
 import { Input } from '@desktop/components/ui/Input'
 import { fatturaService } from '@desktop/lib/fatturaService'
 import { pazienteService } from '@desktop/lib/pazienteService'
 import { buildTemplateData, generateDocument } from '@desktop/lib/documentService'
+import { sistemaTsService } from '@desktop/lib/sistemaTsService'
 import { oggi } from '@desktop/lib/agendaService'
 import { FatturazioneOffline } from '@desktop/sync/fatturazione'
 import { RiepilogoPresenze } from '@desktop/features/fatture/RiepilogoPresenze'
@@ -78,18 +84,57 @@ function moduloIniziale(pazienteId?: string): Modulo {
   }
 }
 
+/** I campi della fattura nel modulo, come `invoiceToForm` del desktop. */
+function moduloDaFattura(f: Invoice): Modulo {
+  return {
+    patientId: f.patientId ?? '',
+    patientFirstName: f.patientFirstName,
+    patientLastName: f.patientLastName,
+    patientFiscalCode: f.patientFiscalCode,
+    azienda: f.azienda ?? '',
+    description: f.description,
+    amount: String(f.amount).replace('.', ','),
+    stampDutyNumber: f.stampDutyNumber ?? '',
+    status: f.status,
+    issueDate: f.issueDate,
+    allegato: f.invoiceType === 'elettronica' ? (f.generatedFile ?? null) : null,
+  }
+}
+
+/** I campi che finiscono nel documento Word: se cambiano, il documento va rigenerato. */
+const CAMPI_DEL_DOCUMENTO = [
+  'patientFirstName',
+  'patientLastName',
+  'patientFiscalCode',
+  'description',
+  'amount',
+  'stampDuty',
+  'stampDutyNumber',
+] as const satisfies readonly (keyof InvoiceInput)[]
+
 const messaggio = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
-export function ModuloFattura({ pazienteId }: { pazienteId?: string }) {
+export function ModuloFattura({ id, pazienteId }: { id?: string; pazienteId?: string }) {
   // Il prossimo numero si aggiorna se intanto il PC fattura
   useDati()
-  const [tipo, setTipo] = useState<InvoiceType>('cartacea')
-  const [form, setForm] = useState<Modulo>(() => moduloIniziale(pazienteId))
+  // La fattura com'era all'apertura: base del modulo e del confronto
+  const [originale] = useState(() => (id ? fatturaService.getById(id) : null))
+  const modifica = !!originale
+  const [tipo, setTipo] = useState<InvoiceType>(originale?.invoiceType ?? 'cartacea')
+  const [form, setForm] = useState<Modulo>(() => (originale ? moduloDaFattura(originale) : moduloIniziale(pazienteId)))
   const [errori, setErrori] = useState<Errori>({})
   const [emettendo, setEmettendo] = useState(false)
   const [emessa, setEmessa] = useState<Invoice | null>(null)
   const [modello, setModello] = useState<StatoModello>('caricamento')
-  const [conDocumento, setConDocumento] = useState(true)
+  // In modifica il documento si rigenera solo se lo si chiede: prende la data di oggi
+  const [conDocumento, setConDocumento] = useState(!modifica)
+
+  /**
+   * Il Sistema TS identifica il documento con tipo, numero e data: dopo la
+   * trasmissione restano bloccati, come sul desktop.
+   */
+  const identitaBloccata =
+    !!originale && ['inviata', 'variata'].includes(sistemaTsService.statoPerFattura(originale))
 
   function scaricaModello() {
     setModello('caricamento')
@@ -141,6 +186,17 @@ export function ModuloFattura({ pazienteId }: { pazienteId?: string }) {
     lettore.readAsDataURL(file)
   }
 
+  /**
+   * In modifica: i campi da salvare. Per una cartacea il documento esistente
+   * resta finché non si rigenera; cambiando tipo, quello del tipo precedente cade.
+   */
+  function datiDaSalvare(numero: string): Partial<InvoiceInput> {
+    const input = comeInput(numero)
+    if (elettronica || tipo !== originale?.invoiceType) return input
+    const { generatedFile: _documentoAttuale, ...senzaDocumento } = input
+    return senzaDocumento
+  }
+
   /** Documento Word col numero definitivo, allegato alla fattura. Senza modello resta senza documento, come sul PC. */
   async function allegaDocumento(fattura: Invoice): Promise<Invoice> {
     try {
@@ -157,24 +213,54 @@ export function ModuloFattura({ pazienteId }: { pazienteId?: string }) {
       }
       return fatturaService.saveGeneratedFile(fattura.id, file) ?? fattura
     } catch (err) {
-      avvisa(`Fattura emessa, ma il documento non è stato generato: ${messaggio(err)}`, 'errore')
+      avvisa(`Fattura ${modifica ? 'salvata' : 'emessa'}, ma il documento non è stato generato: ${messaggio(err)}`, 'errore')
       return fattura
     }
   }
 
-  async function emetti() {
-    // Il numero si assegna all'emissione: qui se ne valida solo il resto
-    const errs: Errori = validateInvoice(comeInput(fatturaService.getNextInvoiceNumber()))
+  /** Valida come il desktop, tranne il numero (non si sceglie qui). Restituisce true se il modulo è corretto. */
+  function valida(numero: string): boolean {
+    const errs: Errori = validateInvoice(comeInput(numero), originale?.id)
     delete errs.invoiceNumber
     // Il paziente si sceglie dall'elenco: nome e cognome arrivano insieme
     if (errs.patientFirstName || errs.patientLastName) errs.patientId = 'Scegli un paziente.'
     delete errs.patientFirstName
     delete errs.patientLastName
-    if (hasInvoiceErrors(errs)) {
-      setErrori(errs)
-      avvisa('Controlla i campi evidenziati.', 'errore')
+    if (!hasInvoiceErrors(errs)) return true
+    setErrori(errs)
+    avvisa('Controlla i campi evidenziati.', 'errore')
+    return false
+  }
+
+  /** Modifica: un salvataggio normale, il numero non cambia. Pubblica il motore in sottofondo. */
+  async function salvaModifiche() {
+    // Il numero attuale: può essere cambiato sul PC mentre il modulo era aperto
+    const attuale = fatturaService.getById(originale!.id)
+    if (!attuale) {
+      avvisa('Questa fattura è stata eliminata da un altro dispositivo.', 'errore')
+      chiudi()
       return
     }
+    if (!valida(attuale.invoiceNumber)) return
+
+    setEmettendo(true)
+    try {
+      const salvata = fatturaService.update(attuale.id, datiDaSalvare(attuale.invoiceNumber))
+      if (!salvata) throw new Error('La fattura non è stata trovata durante il salvataggio.')
+      const conNuovoDocumento = salvata.invoiceType === 'cartacea' && conDocumento
+      if (conNuovoDocumento) await allegaDocumento(salvata)
+      avvisa(conNuovoDocumento ? 'Fattura e documento aggiornati.' : 'Fattura aggiornata.')
+      chiudi()
+    } catch (err) {
+      avvisa(messaggio(err), 'errore')
+    } finally {
+      setEmettendo(false)
+    }
+  }
+
+  async function emetti() {
+    // Il numero si assegna all'emissione: qui se ne valida solo il resto
+    if (!valida(fatturaService.getNextInvoiceNumber())) return
 
     setEmettendo(true)
     try {
@@ -200,46 +286,113 @@ export function ModuloFattura({ pazienteId }: { pazienteId?: string }) {
 
   if (emessa) return <FatturaEmessa fattura={emessa} />
 
+  function notaDocumento(): string {
+    if (modello === 'caricamento') return 'Scarico il modello caricato dal PC…'
+    if (!modifica) {
+      return conDocumento
+        ? "Dal modello caricato dal PC, con il numero definitivo: lo apri subito dopo l'emissione."
+        : 'La fattura si registra senza documento.'
+    }
+    if (conDocumento) {
+      return documentoAttuale
+        ? 'Al posto di quello attuale, con i dati aggiornati e la data di oggi.'
+        : 'Dal modello caricato dal PC, con i dati aggiornati.'
+    }
+    return documentoAttuale ? 'Resta il documento attuale.' : 'La fattura resta senza documento.'
+  }
+
+  if (id && !originale) {
+    return (
+      <Pagina titolo="Fattura" ritorno="chiudi">
+        <p className="px-6 py-14 text-center text-sm text-gray-500 dark:text-gray-400">
+          Questa fattura non esiste più: è stata eliminata da un altro dispositivo.
+        </p>
+      </Pagina>
+    )
+  }
+
   const prossimo = fatturaService.getNextInvoiceNumber()
+  // In modifica il numero attuale, anche se è stato rinumerato mentre il modulo era aperto
+  const numeroAttuale = originale ? (fatturaService.getById(originale.id)?.invoiceNumber ?? originale.invoiceNumber) : null
+  const documentoAttuale = originale?.invoiceType === 'cartacea' && tipo === 'cartacea' ? originale.generatedFile : undefined
+  const datiDocumentoCambiati =
+    !!originale && CAMPI_DEL_DOCUMENTO.some((c) => (comeInput(originale.invoiceNumber)[c] ?? '') !== (originale[c] ?? ''))
 
   return (
     <Pagina
-      titolo="Nuova fattura"
+      titolo={modifica ? 'Modifica fattura' : 'Nuova fattura'}
       ritorno="chiudi"
       piede={
         <>
           <Button variant="secondary" className="flex-1 tocco px-3 whitespace-nowrap" onClick={chiudi} disabled={emettendo}>
             Annulla
           </Button>
-          <Button className="flex-1 tocco px-3 whitespace-nowrap" onClick={emetti} loading={emettendo} disabled={emettendo}>
-            Emetti fattura
+          <Button
+            className="flex-1 tocco px-3 whitespace-nowrap"
+            onClick={modifica ? salvaModifiche : emetti}
+            loading={emettendo}
+            disabled={emettendo}
+          >
+            {modifica ? 'Salva modifiche' : 'Emetti fattura'}
           </Button>
         </>
       }
     >
       <div className="px-4 py-5 space-y-7">
         <Gruppo titolo="Fattura">
-          <Segmenti
-            etichetta="Tipo"
-            valore={tipo}
-            opzioni={[
-              { valore: 'cartacea', etichetta: 'Cartacea' },
-              { valore: 'elettronica', etichetta: 'Elettronica' },
-            ]}
-            onCambia={(t) => {
-              setTipo(t)
-              setErrori({})
-            }}
-          />
+          {identitaBloccata && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.04] px-3 py-2.5">
+              <Lock size={16} className="mt-0.5 shrink-0 text-gray-400" />
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Già trasmessa al Sistema TS: tipo, numero e data non sono più modificabili, perché sono ciò con cui il ministero
+                identifica il documento.
+              </p>
+            </div>
+          )}
+          {identitaBloccata ? (
+            <div className="flex flex-col gap-1">
+              <span className="label">Tipo</span>
+              <div className="input-field flex items-center text-gray-500 dark:text-gray-400">
+                {tipo === 'cartacea' ? 'Cartacea' : 'Elettronica'}
+              </div>
+            </div>
+          ) : (
+            <Segmenti
+              etichetta="Tipo"
+              valore={tipo}
+              opzioni={[
+                { valore: 'cartacea', etichetta: 'Cartacea' },
+                { valore: 'elettronica', etichetta: 'Elettronica' },
+              ]}
+              onCambia={(t) => {
+                setTipo(t)
+                setErrori({})
+              }}
+            />
+          )}
           <div className="flex items-start gap-2.5 rounded-xl border border-teal-100 dark:border-teal-800 bg-teal-50 dark:bg-teal-900/20 px-3 py-2.5">
             <Hash size={16} className="mt-0.5 shrink-0 text-teal-600 dark:text-teal-400" />
-            <p className="text-sm text-teal-800 dark:text-teal-300">
-              Numero assegnato all'emissione: ora il prossimo libero è <span className="font-semibold">{prossimo}</span>. Se intanto
-              fattura anche il PC, prende il successivo.
-            </p>
+            {numeroAttuale ? (
+              <p className="text-sm text-teal-800 dark:text-teal-300">
+                Fattura <span className="font-semibold">n. {numeroAttuale}</span>. Il numero resta quello assegnato all'emissione.
+              </p>
+            ) : (
+              <p className="text-sm text-teal-800 dark:text-teal-300">
+                Numero assegnato all'emissione: ora il prossimo libero è <span className="font-semibold">{prossimo}</span>. Se
+                intanto fattura anche il PC, prende il successivo.
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Data emissione" type="date" required value={form.issueDate} onChange={(e) => imposta('issueDate', e.target.value)} error={errori.issueDate} />
+            <Input
+              label="Data emissione"
+              type="date"
+              required
+              value={form.issueDate}
+              disabled={identitaBloccata}
+              onChange={(e) => imposta('issueDate', e.target.value)}
+              error={errori.issueDate}
+            />
             <Segmenti
               etichetta="Stato"
               valore={form.status}
@@ -365,15 +518,15 @@ export function ModuloFattura({ pazienteId }: { pazienteId?: string }) {
               {modello === 'pronto' || modello === 'caricamento' ? (
                 <>
                   <Interruttore attivo={conDocumento} onCambia={setConDocumento} icona={<FileText size={20} />}>
-                    Genera e allega il documento Word
+                    {documentoAttuale ? 'Rigenera il documento Word' : 'Genera e allega il documento Word'}
                   </Interruttore>
-                  <p className="-mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    {modello === 'caricamento'
-                      ? 'Scarico il modello caricato dal PC…'
-                      : conDocumento
-                        ? "Dal modello caricato dal PC, con il numero definitivo: lo apri subito dopo l'emissione."
-                        : 'La fattura si registra senza documento.'}
-                  </p>
+                  {!conDocumento && documentoAttuale && datiDocumentoCambiati ? (
+                    <p className="-mt-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+                      Hai cambiato dati che compaiono nel documento: attiva l'interruttore per aggiornarlo.
+                    </p>
+                  ) : (
+                    <p className="-mt-2 text-xs text-gray-500 dark:text-gray-400">{notaDocumento()}</p>
+                  )}
                 </>
               ) : (
                 <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5">

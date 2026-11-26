@@ -141,7 +141,7 @@ function SchermataSovrapposta({ vista }: { vista: Vista }) {
     case 'appuntamento':
       return <ModuloAppuntamento id={vista.id} data={vista.data} ora={vista.ora} pazienteId={vista.pazienteId} />
     case 'fattura':
-      return <ModuloFattura pazienteId={vista.pazienteId} />
+      return <ModuloFattura id={vista.id} pazienteId={vista.pazienteId} />
   }
 }
 

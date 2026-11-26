@@ -2,7 +2,7 @@ import { Eye } from 'lucide-react'
 import { Badge } from '@desktop/components/ui/Badge'
 import { downloadDocx } from '@desktop/lib/documentService'
 import { INVOICE_STATUS_LABELS, INVOICE_TYPE_LABELS, type Invoice } from '@desktop/types/fattura'
-import { avvisa } from '../navigazione'
+import { apri, avvisa } from '../navigazione'
 import { dataBreve } from '../schermate/formato'
 
 export const euro = (n: number) => `€ ${n.toFixed(2).replace('.', ',')}`
@@ -20,10 +20,16 @@ export async function apriFattura(f: Invoice): Promise<void> {
   }
 }
 
+/** Una fattura in elenco: toccandola si modifica, l'occhio apre il documento. */
 export function VoceFattura({ fattura: f, conPaziente = false }: { fattura: Invoice; conPaziente?: boolean }) {
   return (
     <div className="flex items-start gap-3 py-3">
-      <div className="flex-1 min-w-0">
+      <button
+        type="button"
+        onClick={() => apri({ tipo: 'fattura', id: f.id })}
+        aria-label={`Modifica la fattura ${f.invoiceNumber}`}
+        className="flex-1 min-w-0 text-left"
+      >
         <div className="flex items-baseline justify-between gap-2">
           <p className="font-semibold text-gray-900 dark:text-white">n. {f.invoiceNumber}</p>
           <p className="font-semibold text-gray-900 dark:text-white tabular-nums">{euro(f.amount + (f.stampDuty ?? 0))}</p>
@@ -40,7 +46,7 @@ export function VoceFattura({ fattura: f, conPaziente = false }: { fattura: Invo
           <Badge variant={f.invoiceType === 'elettronica' ? 'info' : 'muted'}>{INVOICE_TYPE_LABELS[f.invoiceType]}</Badge>
           {f.stampDuty > 0 && <span className="text-xs text-gray-400">bollo {euro(f.stampDuty)}</span>}
         </div>
-      </div>
+      </button>
       {f.generatedFile && (
         <button
           onClick={() => apriFattura(f)}

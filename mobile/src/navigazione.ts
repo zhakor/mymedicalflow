@@ -17,7 +17,7 @@ export type Vista =
   | { tipo: 'cartella'; id: string }
   | { tipo: 'paziente'; id?: string }
   | { tipo: 'appuntamento'; id?: string; data?: string; ora?: string; pazienteId?: string }
-  | { tipo: 'fattura'; pazienteId?: string }
+  | { tipo: 'fattura'; id?: string; pazienteId?: string }
 
 // ─── Dove gira l'app ──────────────────────────────────────────────────────────
 

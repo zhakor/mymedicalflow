@@ -5,6 +5,7 @@ import { profiloService } from '@desktop/lib/profiloService'
 import { impostazioniService } from '@desktop/lib/impostazioniService'
 import { useDati } from '../dati/hooks'
 import { useSincronizzazione } from '../dati/sincronizzazione'
+import { VERSIONE } from '../versione'
 
 export function Altro() {
   useDati()
@@ -89,7 +90,11 @@ export function Altro() {
         </section>
       )}
 
-      <p className="text-center text-xs text-gray-400 pt-2">MyMedicalFlow mobile — anteprima</p>
+      {/* Versione (commit) e ora di compilazione: per capire se il telefono ha l'ultima */}
+      <p className="text-center text-xs text-gray-400 pt-2">
+        MyMedicalFlow mobile — anteprima
+        <span className="block tabular-nums mt-0.5">{VERSIONE}</span>
+      </p>
     </div>
   )
 }

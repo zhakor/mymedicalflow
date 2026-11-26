@@ -24,45 +24,93 @@
   <body>
     <div id="root"></div>
     <!--
-      Mai una pagina bianca: se l'app non parte, l'errore compare sullo schermo.
-      Script classico e senza sintassi moderna, così funziona anche quando il
-      resto non viene capito dal browser.
+      Schermata d'emergenza: solo se l'app NON riesce a partire (un file che non
+      arriva, una sintassi che il browser non capisce). Gli errori ad app avviata
+      li mostra la pagina d'errore dell'app (componenti/ErroreApp.tsx).
+      Script classico e senza sintassi moderna, così funziona sempre.
     -->
+    <style>
+      #emergenza{position:fixed;inset:0;z-index:9999;overflow:auto;background:#eef4f4;color:#111827;
+        font:15px/1.5 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+        padding:calc(40px + env(safe-area-inset-top)) 20px calc(32px + env(safe-area-inset-bottom))}
+      #emergenza .scatola{max-width:28rem;margin:0 auto}
+      #emergenza .marchio{display:flex;align-items:center;gap:10px;font-weight:600}
+      #emergenza .marchio img{width:32px;height:32px}
+      #emergenza .scheda{margin-top:32px;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.8);
+        border-radius:22px;padding:24px;box-shadow:0 10px 30px -18px rgba(13,70,70,.35)}
+      #emergenza .simbolo{width:48px;height:48px;border-radius:16px;background:#fef3c7;color:#d97706;
+        display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700}
+      #emergenza h1{font-size:20px;line-height:1.3;margin:16px 0 0}
+      #emergenza p{margin:8px 0 0;color:#4b5563}
+      #emergenza button{width:100%;min-height:48px;border-radius:12px;font:inherit;font-weight:500;cursor:pointer}
+      #emergenza .primario{margin-top:24px;border:0;background:#0d9488;color:#fff}
+      #emergenza .secondario{margin-top:12px;border:1px solid rgba(15,118,110,.2);background:rgba(255,255,255,.7);color:#0f766e}
+      #emergenza details{margin-top:16px}
+      #emergenza summary{cursor:pointer;font-size:14px;font-weight:500;color:#374151;padding:8px 0}
+      #emergenza pre{white-space:pre-wrap;word-break:break-word;background:rgba(17,24,39,.05);padding:12px;
+        border-radius:12px;font-size:11px;line-height:1.5;max-height:16rem;overflow:auto;-webkit-user-select:text;user-select:text}
+      @media (prefers-color-scheme:dark){
+        #emergenza{background:#050a0b;color:#f9fafb}
+        #emergenza .scheda{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.08)}
+        #emergenza .simbolo{background:rgba(120,53,15,.3)}
+        #emergenza p,#emergenza summary{color:#d1d5db}
+        #emergenza .secondario{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.1);color:#5eead4}
+        #emergenza pre{background:rgba(255,255,255,.06);color:#d1d5db}
+      }
+    </style>
     <script>
       (function () {
         var errori = [];
+        function testo() {
+          return errori.join('\n\n') + '\n\nPagina: ' + location.href + '\n' + navigator.userAgent;
+        }
         function mostra() {
-          if (document.getElementById('errore-avvio')) {
-            document.getElementById('errore-avvio-testo').textContent = errori.join('\n\n');
-            return;
-          }
+          var esistente = document.getElementById('emergenza-dettagli');
+          if (esistente) { esistente.textContent = testo(); return; }
           var box = document.createElement('div');
-          box.id = 'errore-avvio';
-          box.style.cssText = 'position:fixed;inset:0;z-index:9999;overflow:auto;padding:calc(24px + env(safe-area-inset-top)) 20px 24px;background:#fff;color:#111;font:14px/1.5 -apple-system,system-ui,sans-serif';
-          box.innerHTML = '<p style="font-weight:600;font-size:17px;margin:0 0 8px">MyMedicalFlow non è partita</p>' +
-            '<p style="margin:0 0 12px;color:#555">Copia o fotografa questo testo per la diagnosi.</p>' +
-            '<pre id="errore-avvio-testo" style="white-space:pre-wrap;word-break:break-word;background:#f3f4f6;padding:12px;border-radius:12px;font-size:12px"></pre>';
+          box.id = 'emergenza';
+          box.setAttribute('role', 'alert');
+          box.innerHTML =
+            '<div class="scatola">' +
+              '<div class="marchio"><img src="/favicon.svg" alt="">MyMedicalFlow</div>' +
+              '<div class="scheda">' +
+                '<div class="simbolo">!</div>' +
+                '<h1>L’app non riesce ad avviarsi</h1>' +
+                '<p>Non è stato possibile caricare MyMedicalFlow. Spesso basta riprovare: controlla la connessione e ricarica.</p>' +
+                '<button class="primario" id="emergenza-riprova">Riprova</button>' +
+                '<button class="secondario" id="emergenza-copia">Copia i dettagli per l’assistenza</button>' +
+                '<details><summary>Dettagli tecnici</summary><pre id="emergenza-dettagli"></pre></details>' +
+              '</div>' +
+            '</div>';
           document.body.appendChild(box);
-          document.getElementById('errore-avvio-testo').textContent = errori.join('\n\n');
+          document.getElementById('emergenza-dettagli').textContent = testo();
+          document.getElementById('emergenza-riprova').onclick = function () { location.reload(); };
+          document.getElementById('emergenza-copia').onclick = function () {
+            var bottone = this;
+            function fatto() { bottone.textContent = 'Copiato'; }
+            if (navigator.clipboard) navigator.clipboard.writeText(testo()).then(fatto, function () {});
+            box.querySelector('details').open = true;
+          };
         }
         window.addEventListener('error', function (e) {
+          // Ad app avviata se ne occupa la pagina d'errore dell'app
+          if (window.__mmfAvviata) return;
           var t = e.target;
           if (t && t !== window && (t.src || t.href)) errori.push('Risorsa non caricata: ' + (t.src || t.href));
           else errori.push((e.message || 'Errore') + (e.filename ? '\n' + e.filename + ':' + e.lineno + ':' + e.colno : ''));
           mostra();
         }, true);
         window.addEventListener('unhandledrejection', function (e) {
+          if (window.__mmfAvviata) return;
           errori.push('Promessa rifiutata: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason));
           mostra();
         });
-        // Nessun errore ma niente a schermo dopo 8 secondi: diciamo almeno cosa c'è
+        // Nessun errore ma l'app non è partita dopo 10 secondi
         setTimeout(function () {
-          var root = document.getElementById('root');
-          if (root && !root.firstChild) {
-            errori.push('Nessun contenuto dopo 8 secondi.\nContesto sicuro: ' + window.isSecureContext + '\nWebCrypto: ' + !!(window.crypto && window.crypto.subtle) + '\n' + navigator.userAgent);
-            mostra();
-          }
-        }, 8000);
+          if (window.__mmfAvviata) return;
+          errori.push('Avvio non completato dopo 10 secondi.\nContesto sicuro: ' + window.isSecureContext + '\nWebCrypto: ' + !!(window.crypto && window.crypto.subtle));
+          mostra();
+        }, 10000);
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>

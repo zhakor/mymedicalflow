@@ -17,12 +17,26 @@ import basicSsl from '@vitejs/plugin-basic-ssl'
 import tailwindcss from 'tailwindcss'
 import autoprefixer from 'autoprefixer'
 import path from 'path'
+import { execSync } from 'child_process'
+
+/** Commit corrente: insieme all'ora di avvio dice quale versione ha davanti il telefono. */
+function commitCorrente(): string {
+  try {
+    return execSync('git rev-parse --short HEAD', { cwd: __dirname }).toString().trim()
+  } catch {
+    return 'sconosciuto'
+  }
+}
 
 export default defineConfig(({ mode }) => {
   const https = mode.endsWith('https')
+  const avvio = new Date().toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 
   return {
     root: __dirname,
+    define: {
+      __VERSIONE_APP__: JSON.stringify(`${commitCorrente()} · ${avvio}`),
+    },
     // Cache delle dipendenze separata da quella del desktop: condivisa, i due
     // server di sviluppo si sovrascrivono a vicenda e React finisce in due copie.
     cacheDir: path.resolve(__dirname, '../node_modules/.vite-mobile'),

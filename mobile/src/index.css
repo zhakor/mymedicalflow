@@ -30,6 +30,11 @@
   html {
     height: 100%;
     overscroll-behavior: none;
+    /* Fondo del documento nel tono della testata: niente bianco ai bordi */
+    background-color: #ecf7f6;
+  }
+  html.dark {
+    background-color: #0d1a1b;
   }
   body {
     position: fixed;

@@ -18,11 +18,17 @@ import { ModuloAppuntamento } from './schermate/ModuloAppuntamento'
 import { Avvio, Errore, Offline } from './schermate/Avvisi'
 import { Sfondo, UI, USCITA } from './componenti/Movimento'
 
+/** Tono della testata di vetro: lo prendono anche barra di stato e fondo del documento. */
+const COLORE_TESTATA = { chiaro: '#ecf7f6', scuro: '#0d1a1b' }
+
 /** Il tema è un'impostazione dell'archivio: segue anche le modifiche fatte sul PC. */
 function useTema(): void {
   const versione = useDati()
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', impostazioniService.get().tema === 'dark')
+    const scuro = impostazioniService.get().tema === 'dark'
+    document.documentElement.classList.toggle('dark', scuro)
+    // La zona dell'isola resta in continuità con la testata, in chiaro e in scuro
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', scuro ? COLORE_TESTATA.scuro : COLORE_TESTATA.chiaro)
   }, [versione])
 }
 

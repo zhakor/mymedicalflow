@@ -18,7 +18,7 @@
  */
 
 import type { Byte } from './cifratura'
-import { ErroreConnessione, type DepositoFile, type DepositoModello, type FileModello } from './contratti'
+import { ErroreAccesso, ErroreConnessione, type DepositoFile, type DepositoModello, type FileModello } from './contratti'
 
 const API = 'https://www.googleapis.com/drive/v3'
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3'
@@ -47,14 +47,6 @@ export interface OpzioniDrive {
   token(rinnova?: boolean): Promise<string>
   /** Per i test. */
   fetch?: typeof fetch
-}
-
-/** Login scaduto o revocato: serve un nuovo accesso Google, ritentare non basta. */
-export class ErroreAccesso extends Error {
-  constructor(messaggio = "L'accesso a Google è scaduto: accedi di nuovo.") {
-    super(messaggio)
-    this.name = 'ErroreAccesso'
-  }
 }
 
 interface FileDrive {

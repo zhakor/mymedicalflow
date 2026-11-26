@@ -254,6 +254,12 @@ Aggiunto il 26/11/2026: `modello.ts` con `estraiModello` (passo 4 del §8: il mo
 
 Fase 2 avviata il 26/11/2026: `drive.ts`, adattatore Drive REST v3 per `DepositoFile` e `DepositoModello`, solo `fetch`, con struttura a marcatori (§4.1), configurazione ripetibile (§8, passo 3), rinnovo del token su 401 ed errori di rete distinti dagli errori veri. Provato contro un Drive finto e con il motore reale sopra (8 test, 59 in tutto).
 
+Aggiunto il 26/11/2026: `firestore.ts`, adattatore Firestore per `Registro` (lettura sempre dal server, pubblicazione in transazione, ascolto che scarta gli stati dalla cache), e `firestore.rules` (§4.2: licenza attiva e non scaduta, email verificata, solo il proprio documento, revisione che avanza di uno, campi del puntatore fissi, niente cancellazioni). Provati contro l'emulatore ufficiale con `npm run test:firestore` (11 test; serve Java 21). Due comportamenti scoperti con l'emulatore:
+- in una gara tra due dispositivi il server valuta le regole sul documento già aggiornato e risponde "accesso negato" invece di far ripetere la transazione: l'adattatore rilegge e, se la revisione è cambiata, la tratta come gara persa (`false`);
+- senza rete una lettura fallisce dopo qualche secondo (circa 3 nell'emulatore), non subito.
+
+Ogni operazione su `archivi/{uid}` costa una lettura in più per la licenza letta dalle regole: resta molto al di sotto delle quote (§12).
+
 Per la Fase 2 restano:
 - il modello Word sul desktop: dopo la configurazione il suo contenuto non è più nell'archivio sincronizzato, quindi il PC ne tiene una copia locale per generare le fatture e lo ricarica su Drive (`DepositoModello.carica`) quando l'utente lo cambia nelle Impostazioni;
 - l'eliminazione dei file di archivio più vecchi delle ultime N revisioni, compito dell'adattatore Drive;

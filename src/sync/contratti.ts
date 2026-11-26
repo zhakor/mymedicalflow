@@ -70,3 +70,19 @@ export class ErroreConnessione extends Error {
     this.name = 'ErroreConnessione'
   }
 }
+
+/** Login scaduto o revocato: serve un nuovo accesso Google, ritentare non basta. */
+export class ErroreAccesso extends Error {
+  constructor(messaggio = "L'accesso a Google è scaduto: accedi di nuovo.") {
+    super(messaggio)
+    this.name = 'ErroreAccesso'
+  }
+}
+
+/** Le regole di Firestore negano l'accesso: licenza assente, disattivata o scaduta (CR §7). */
+export class ErroreLicenza extends Error {
+  constructor(messaggio = 'La licenza di MyMedicalFlow per questo account non è attiva.') {
+    super(messaggio)
+    this.name = 'ErroreLicenza'
+  }
+}

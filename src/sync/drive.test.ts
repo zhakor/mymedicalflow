@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { Drive, ErroreAccesso } from './drive'
-import { ErroreConnessione } from './contratti'
+import { Drive } from './drive'
+import { ErroreAccesso, ErroreConnessione } from './contratti'
 import { importaChiave, type Archivio } from './cifratura'
 import { CloudInMemoria } from './memoria'
 import { MotoreSincronizzazione } from './motore'

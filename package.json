@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:firestore": "firebase emulators:exec --only firestore --project demo-mmf \"vitest run src/sync/firestore.test.ts\"",
     "mobile:dev": "vite --config mobile/vite.config.ts --mode fake",
     "mobile:telefono": "vite --config mobile/vite.config.ts --mode fake-https",
     "mobile:build": "tsc -p mobile && vite build --config mobile/vite.config.ts --mode fake",
@@ -22,6 +23,7 @@
     "@tauri-apps/plugin-updater": "^2.10.1",
     "clsx": "^2.1.1",
     "docxtemplater": "^3.68.6",
+    "firebase": "^13.4.0",
     "lucide-react": "^0.468.0",
     "motion": "^12.43.0",
     "pizzip": "^3.2.0",
@@ -30,6 +32,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
     "@tauri-apps/api": "^2.1.1",
     "@tauri-apps/cli": "^2.1.0",
     "@types/pizzip": "^3.0.5",
@@ -38,6 +41,7 @@
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "firebase-tools": "^15.37.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",

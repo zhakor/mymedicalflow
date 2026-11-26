@@ -83,7 +83,7 @@ export function Pagina({ titolo, ritorno = 'indietro', azioni, piede, children }
       <header
         onPointerDown={iniziaDallaTestata}
         style={foglio ? { touchAction: 'none' } : undefined}
-        className="absolute inset-x-0 top-0 z-10 vetro-spesso border-0 border-b pt-[env(safe-area-inset-top)]"
+        className="absolute inset-x-0 top-0 z-10 testata pt-[env(safe-area-inset-top)]"
       >
         {foglio && <div aria-hidden className="absolute left-1/2 top-[calc(0.375rem+env(safe-area-inset-top))] -ml-5 h-1.5 w-10 rounded-full bg-gray-400/40 dark:bg-white/20" />}
         <div className="h-14 px-1 flex items-center gap-1">

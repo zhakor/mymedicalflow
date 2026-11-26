@@ -183,7 +183,15 @@ export function archivioDemo(): Archivio {
     sesso: 'female',
   }
 
-  const impostazioni: ImpostazioniApp = { tema: 'light' }
+  // L'archivio vero conserva il tema scelto; quello di esempio, rigenerato a ogni
+  // apertura, riparte dall'ultimo tema usato invece di tornare sempre al chiaro.
+  let ultimoTema: ImpostazioniApp['tema'] = 'light'
+  try {
+    if (localStorage.getItem('mmf.mobile.tema') === 'dark') ultimoTema = 'dark'
+  } catch {
+    // Nessuna memoria disponibile: chiaro
+  }
+  const impostazioni: ImpostazioniApp = { tema: ultimoTema }
 
   return {
     pazienti: JSON.stringify(pazienti),

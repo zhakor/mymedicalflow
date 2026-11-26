@@ -5,9 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!--
       Colore della barra di stato in Safari: lo stesso della testata di vetro.
-      Segue il tema scelto nell'app (non quello del telefono): lo aggiorna useTema.
+      Segue il tema scelto nell'app (non quello del telefono). Safari lo legge
+      all'apertura della pagina, prima che l'app carichi il tema dall'archivio:
+      per questo lo script qui sotto applica subito l'ultimo tema usato
+      (ricordato da useTema in App.tsx).
     -->
-    <meta name="theme-color" content="#ecf7f6" />
+    <meta name="theme-color" content="#eef4f4" />
+    <!--
+      Fondo della pagina subito, prima del CSS dell'app (niente lampo bianco), e
+      velo per il cambio di tema: l'app si ricarica (vedi useTema in App.tsx) e
+      il velo, nel colore del nuovo tema, copre ricaricamento e avvio finché la
+      schermata è pronta. Stessi colori di --fondo-app in src/index.css.
+    -->
+    <style>
+      html{background-color:#eef4f4}
+      html.dark{background-color:#050a0b}
+      #velo{position:fixed;inset:0;z-index:9000;background-color:#eef4f4;opacity:0;pointer-events:none;transition:opacity .28s ease}
+      html.dark #velo{background-color:#050a0b}
+      html.velo #velo{opacity:1;pointer-events:auto}
+    </style>
+    <script>
+      (function () {
+        try {
+          if (localStorage.getItem('mmf.mobile.tema') === 'dark') {
+            document.documentElement.classList.add('dark');
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', '#050a0b');
+          }
+        } catch (e) {}
+        try {
+          if (sessionStorage.getItem('mmf.velo')) {
+            sessionStorage.removeItem('mmf.velo');
+            document.documentElement.classList.add('velo');
+            // Mai un velo che resta: al più tardi sparisce dopo 8 secondi
+            setTimeout(function () { document.documentElement.classList.remove('velo'); }, 8000);
+          }
+        } catch (e) {}
+      })();
+    </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <!--
@@ -22,6 +56,15 @@
     <title>MyMedicalFlow</title>
   </head>
   <body>
+    <!--
+      Striscia fissa in cima, nel colore di fondo dell'app (stile in index.css).
+      Safari (iOS 26) colora la zona di barra di stato e isola col fondo
+      dell'elemento fisso sul bordo in alto (se fosse trasparente userebbe bianco
+      o nero) e lo legge solo all'apertura: per questo al cambio di tema l'app
+      si ricarica (useTema in App.tsx).
+    -->
+    <div id="tinta-barra" aria-hidden="true"></div>
+    <div id="velo" aria-hidden="true"></div>
     <div id="root"></div>
     <!--
       Schermata d'emergenza: solo se l'app NON riesce a partire (un file che non

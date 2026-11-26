@@ -4,6 +4,7 @@ import { clsx } from 'clsx'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { impostazioniService } from '@desktop/lib/impostazioniService'
 import { useDati, useOnline } from './dati/hooks'
+import { leggiArchivio } from './dati/archivio'
 import { avviaModalitaSimulata, useSincronizzazione } from './dati/sincronizzazione'
 import { ripristinaPosizione, useAvvisi, useNavigazione, type Vista } from './navigazione'
 import { Layout, type Scheda } from './componenti/Layout'
@@ -18,18 +19,81 @@ import { ModuloAppuntamento } from './schermate/ModuloAppuntamento'
 import { Avvio, Errore, Offline } from './schermate/Avvisi'
 import { Sfondo, UI, USCITA } from './componenti/Movimento'
 
-/** Tono della testata di vetro: lo prendono anche barra di stato e fondo del documento. */
-const COLORE_TESTATA = { chiaro: '#ecf7f6', scuro: '#0d1a1b' }
+/** Colore di fondo dell'app (--fondo-app in index.css): testata, barra di stato e documento. */
+const COLORE_TESTATA = { chiaro: '#eef4f4', scuro: '#050a0b' }
 
 /** Il tema è un'impostazione dell'archivio: segue anche le modifiche fatte sul PC. */
 function useTema(): void {
   const versione = useDati()
   useEffect(() => {
+    // Finché l'archivio non è arrivato vale il tema applicato da index.html:
+    // il predefinito delle impostazioni farebbe lampeggiare il tema sbagliato.
+    if (leggiArchivio().impostazioni === undefined) return
     const scuro = impostazioniService.get().tema === 'dark'
+    const cambiato = document.documentElement.classList.contains('dark') !== scuro
     document.documentElement.classList.toggle('dark', scuro)
-    // La zona dell'isola resta in continuità con la testata, in chiaro e in scuro
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', scuro ? COLORE_TESTATA.scuro : COLORE_TESTATA.chiaro)
+    let ricordato = false
+    try {
+      localStorage.setItem('mmf.mobile.tema', scuro ? 'dark' : 'light')
+      ricordato = localStorage.getItem('mmf.mobile.tema') === (scuro ? 'dark' : 'light')
+    } catch {
+      // Senza spazio si riparte dal chiaro: nient'altro cambia
+    }
+    // Safari (iOS 26) colora la zona dell'isola solo all'apertura della pagina:
+    // cambiato il tema, si ricarica perché la riprenda. Solo col tema ricordato
+    // (al riavvio coincide e non si ricarica più) e a modifica arrivata sul cloud.
+    if (cambiato && ricordato) ricaricaASalvataggioFinito()
+    // La zona dell'isola resta in continuità con la testata, in chiaro e in scuro.
+    // Un tag nuovo al posto del vecchio: Safari non sempre segue la sola modifica.
+    const colore = scuro ? COLORE_TESTATA.scuro : COLORE_TESTATA.chiaro
+    const vecchio = document.querySelector('meta[name="theme-color"]')
+    if (vecchio?.getAttribute('content') === colore) return
+    const nuovo = document.createElement('meta')
+    nuovo.name = 'theme-color'
+    nuovo.content = colore
+    if (vecchio) vecchio.replaceWith(nuovo)
+    else document.head.appendChild(nuovo)
   }, [versione])
+}
+
+/** Durata della dissolvenza del velo (#velo in index.html). */
+const DISSOLVENZA_VELO = 280
+
+/**
+ * Ricarica quando la sincronizzazione è ferma e allineata: un salvataggio in
+ * corso (parte 300 ms dopo la modifica) andrebbe perso. Con errore od offline
+ * non ricarica: il tema vale già, resta solo la zona dell'isola fino alla
+ * prossima apertura.
+ *
+ * Tutto avviene sotto il velo nel colore del nuovo tema: la schermata ci sfuma
+ * dentro, si ricarica, e ne riemerge a dati pronti (vedi App).
+ */
+function ricaricaASalvataggioFinito(): void {
+  const inizio = Date.now()
+  document.documentElement.classList.add('velo')
+  // Un giro dopo, quando la modifica ha già segnato "in corso"
+  setTimeout(() => {
+    const valuta = (sync: string): boolean => {
+      if (sync === 'in-corso') return false
+      if (sync === 'allineato') {
+        try {
+          // Il velo resta anche sulla pagina ricaricata, dal primo disegno
+          sessionStorage.setItem('mmf.velo', '1')
+        } catch {
+          // Senza: si ricarica comunque, solo senza velo all'avvio
+        }
+        // Solo a velo del tutto coprente
+        setTimeout(() => location.reload(), Math.max(0, DISSOLVENZA_VELO - (Date.now() - inizio)))
+      } else {
+        document.documentElement.classList.remove('velo')
+      }
+      return true
+    }
+    if (valuta(useSincronizzazione.getState().sync)) return
+    const smetti = useSincronizzazione.subscribe((s) => {
+      if (valuta(s.sync)) smetti()
+    })
+  }, 0)
 }
 
 /** Esito delle azioni e arrivi dall'altro dispositivo, sopra la barra in basso. */
@@ -92,6 +156,15 @@ export function App() {
   useEffect(() => {
     if (app === 'pronta') ripristinaPosizione()
   }, [app])
+
+  // Dopo un cambio di tema la pagina riparte sotto il velo (index.html): si
+  // toglie a schermata pronta, quando le animazioni d'ingresso sono finite.
+  // Errori e assenza di rete si mostrano subito.
+  useEffect(() => {
+    if (online && app === 'avvio') return
+    const t = setTimeout(() => document.documentElement.classList.remove('velo'), online && app === 'pronta' ? 450 : 0)
+    return () => clearTimeout(t)
+  }, [online, app])
 
   return (
     <MotionConfig reducedMotion="user">

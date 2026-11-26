@@ -86,7 +86,7 @@ export function Layout({ scheda, onScheda, children }: LayoutProps) {
       </main>
       <IndicatoreAggiornamento tiro={tiro} stato={stato} />
 
-      <header className="absolute inset-x-0 top-0 z-20 vetro-spesso border-0 border-b pt-[env(safe-area-inset-top)]">
+      <header className="absolute inset-x-0 top-0 z-20 testata pt-[env(safe-area-inset-top)]">
         <div className="h-14 px-4 flex items-center gap-3">
           <img src={iconaBlue} alt="" className="w-8 h-8 object-contain dark:hidden" />
           <img src={iconaWhite} alt="" className="w-8 h-8 object-contain hidden dark:block" />

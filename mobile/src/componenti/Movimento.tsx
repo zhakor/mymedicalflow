@@ -32,7 +32,7 @@ export function Comparsa({ i = 0, children, className }: { i?: number; children:
 /** Sfondo con luci tenui nei colori dell'app: dà al vetro qualcosa da sfocare. */
 export function Sfondo() {
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-[var(--fondo-app)]">
       <div className="absolute -top-32 -left-24 h-96 w-96 rounded-full bg-teal-300/35 blur-3xl dark:bg-teal-700/25" />
       <div className="absolute top-1/3 -right-32 h-[28rem] w-[28rem] rounded-full bg-cyan-200/40 blur-3xl dark:bg-cyan-900/25" />
       <div className="absolute -bottom-40 left-1/4 h-96 w-96 rounded-full bg-emerald-200/35 blur-3xl dark:bg-emerald-900/20" />

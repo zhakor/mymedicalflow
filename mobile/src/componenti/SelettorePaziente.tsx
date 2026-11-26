@@ -56,9 +56,9 @@ export function SelettorePaziente({
           initial={{ y: '100%' }}
           animate={{ y: 0, transition: SPINTA }}
           exit={{ y: '100%', transition: USCITA }}
-          className="fixed inset-0 z-50 flex flex-col bg-[#eef4f4]/95 dark:bg-[#050a0b]/95 backdrop-blur-2xl"
+          className="fixed inset-0 z-50 flex flex-col bg-[var(--fondo-app)]"
         >
-          <div className="shrink-0 pt-[env(safe-area-inset-top)] vetro-spesso border-0 border-b px-3 pb-3">
+          <div className="relative z-10 shrink-0 pt-[env(safe-area-inset-top)] testata px-3 pb-3">
             <div className="h-14 flex items-center gap-1">
               <button type="button" onClick={() => setAperto(false)} className="tocco flex items-center justify-center rounded-xl text-gray-600 dark:text-gray-300" aria-label="Chiudi">
                 <X size={22} />

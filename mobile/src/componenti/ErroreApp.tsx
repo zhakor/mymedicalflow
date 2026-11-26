@@ -147,6 +147,8 @@ export class ConfineErrori extends Component<{ children: ReactNode }, Stato> {
 
   componentDidCatch(errore: Error, info: ErrorInfo) {
     console.error('[MyMedicalFlow] errore di disegno', errore, info.componentStack)
+    // L'errore va visto subito, anche se arriva sotto il velo del cambio di tema
+    document.documentElement.classList.remove('velo')
   }
 
   render() {

@@ -17,6 +17,13 @@
      Home (34 pt su iPhone), come le app di sistema; mai a meno di 12 px dal bordo. */
   --fondo-barra: max(0.75rem, calc(env(safe-area-inset-bottom) - 0.5rem));
   --barra: calc(4.75rem + var(--fondo-barra));
+  /* Unico colore di fondo: documento, testate e zona di barra di stato e isola.
+     Safari colora quella zona campionando i pixel in cima alla pagina: se sono
+     tutti uguali la continua, altrimenti la riempie di bianco o nero. */
+  --fondo-app: #eef4f4;
+}
+html.dark {
+  --fondo-app: #050a0b;
 }
 
 @layer base {
@@ -31,10 +38,7 @@
     height: 100%;
     overscroll-behavior: none;
     /* Fondo del documento nel tono della testata: niente bianco ai bordi */
-    background-color: #ecf7f6;
-  }
-  html.dark {
-    background-color: #0d1a1b;
+    background-color: var(--fondo-app);
   }
   body {
     position: fixed;
@@ -50,7 +54,11 @@
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior: none;
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif;
-    @apply bg-[#eef4f4] dark:bg-[#050a0b];
+  }
+  /* Anche in scuro: la regola `dark:` del CSS desktop è più specifica di `body` */
+  body,
+  html.dark body {
+    background-color: var(--fondo-app);
   }
 
   /* Riscontro alla pressione: breve, senza rimbalzo. */
@@ -88,6 +96,36 @@
   /* Materiale spesso: barre, pannelli e fogli che galleggiano sul contenuto. */
   .vetro-spesso {
     @apply bg-white/70 dark:bg-[#0c1415]/70 backdrop-blur-2xl backdrop-saturate-[1.8] border-white/70 dark:border-white/[0.08];
+  }
+
+  /*
+   * Testata in cima allo schermo: piena, nel colore di fondo, così continua
+   * senza stacco nella zona dell'isola. Al posto della riga, una sfumatura
+   * in cui il contenuto si dissolve scorrendo (come le app di iOS 26).
+   */
+  .testata {
+    background-color: var(--fondo-app);
+  }
+  .testata::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 100%;
+    height: 1.25rem;
+    background: linear-gradient(var(--fondo-app), transparent);
+    pointer-events: none;
+  }
+
+  /* Striscia per la zona dell'isola (vedi index.html): sopra le pagine aperte,
+     sotto conferme e selettori, che hanno un fondo proprio. */
+  #tinta-barra {
+    position: fixed;
+    inset-inline: 0;
+    top: 0;
+    z-index: 45;
+    height: 0.25rem;
+    background-color: var(--fondo-app);
+    pointer-events: none;
   }
 
   /* Le card del desktop diventano vetro sottile, con raggio continuo da iOS. */

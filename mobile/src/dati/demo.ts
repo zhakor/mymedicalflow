@@ -191,7 +191,17 @@ export function archivioDemo(): Archivio {
   } catch {
     // Nessuna memoria disponibile: chiaro
   }
-  const impostazioni: ImpostazioniApp = { tema: ultimoTema }
+  // Il modello Word caricato nelle Impostazioni del PC: alla configurazione va su Drive (CR §8)
+  const impostazioni: ImpostazioniApp = {
+    tema: ultimoTema,
+    templateFattura: {
+      nomeFile: 'Modello fattura (esempio).docx',
+      dimensione: Math.round((modello.length * 3) / 4),
+      dataCaricamento: ADESSO,
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      contenuto: modello,
+    },
+  }
 
   return {
     pazienti: JSON.stringify(pazienti),

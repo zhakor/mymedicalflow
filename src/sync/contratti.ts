@@ -24,6 +24,24 @@ export interface DepositoFile {
   cestina(fileId: string): Promise<void>
 }
 
+/** Il modello Word delle fatture cartacee. */
+export interface FileModello {
+  nomeFile: string
+  dati: Byte
+}
+
+/**
+ * Il modello Word su Drive, IN CHIARO in `template/` (CR §4.1). Lo carica il
+ * PC alla configurazione (§8), estraendolo dalle impostazioni; il telefono lo
+ * scarica per generare le fatture cartacee. Non contiene dati di pazienti.
+ */
+export interface DepositoModello {
+  /** Sostituisce il modello su Drive. */
+  carica(modello: FileModello): Promise<void>
+  /** null se il PC non ha caricato nessun modello. */
+  scarica(): Promise<FileModello | null>
+}
+
 /**
  * L'intero documento Firestore dell'utente: UN solo documento, così un solo
  * ascolto basta a tutto e ogni cambiamento costa una lettura per dispositivo

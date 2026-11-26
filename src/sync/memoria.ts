@@ -13,6 +13,8 @@ import type { Byte } from './cifratura'
 import {
   ErroreConnessione,
   type DepositoFile,
+  type DepositoModello,
+  type FileModello,
   type Puntatore,
   type Registro,
   type StatoRegistro,
@@ -26,6 +28,8 @@ export interface Connessione {
 
 export class CloudInMemoria {
   readonly file = new Map<string, Byte>()
+  /** Il modello Word in `template/` su Drive. */
+  modello: FileModello | null = null
   puntatore: Puntatore | null = null
   /** Consumo Firestore simulato. */
   readonly consumo = { letture: 0, scritture: 0 }
@@ -48,7 +52,7 @@ export class CloudInMemoria {
     }
   }
 
-  client(connessione: Connessione = { online: true }): { deposito: DepositoFile; registro: Registro } {
+  client(connessione: Connessione = { online: true }): { deposito: DepositoFile; registro: Registro; modello: DepositoModello } {
     const rete = (): void => {
       if (!connessione.online) throw new ErroreConnessione()
     }
@@ -106,6 +110,17 @@ export class CloudInMemoria {
       },
     }
 
-    return { deposito, registro }
+    const modello: DepositoModello = {
+      carica: async ({ nomeFile, dati }) => {
+        rete()
+        this.modello = { nomeFile, dati: dati.slice() }
+      },
+      scarica: async () => {
+        rete()
+        return this.modello ? { nomeFile: this.modello.nomeFile, dati: this.modello.dati.slice() } : null
+      },
+    }
+
+    return { deposito, registro, modello }
   }
 }

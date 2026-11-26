@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Pencil, Trash2, Phone, MessageCircle, CalendarPlus, User, MapPin, Users, FileText, Calendar, Repeat } from 'lucide-react'
+import { Pencil, Trash2, Phone, MessageCircle, CalendarPlus, User, MapPin, Users, FileText, FilePlus, Calendar, Repeat } from 'lucide-react'
 import { clsx } from 'clsx'
 import { AnimatePresence } from 'motion/react'
 import { Badge } from '@desktop/components/ui/Badge'
@@ -232,6 +232,9 @@ export function Cartella({ id }: { id: string }) {
               ))}
             </div>
           )}
+          <Button variant="secondary" className="tocco mt-4 w-full gap-2" onClick={() => apri({ tipo: 'fattura', pazienteId: p.id })}>
+            <FilePlus size={18} /> Nuova fattura
+          </Button>
         </Sezione>
       </div>
 

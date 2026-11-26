@@ -16,6 +16,7 @@ import { Altro } from './schermate/Altro'
 import { Cartella } from './schermate/Cartella'
 import { ModuloPaziente } from './schermate/ModuloPaziente'
 import { ModuloAppuntamento } from './schermate/ModuloAppuntamento'
+import { ModuloFattura } from './schermate/ModuloFattura'
 import { Avvio, Errore, Offline } from './schermate/Avvisi'
 import { Sfondo, UI, USCITA } from './componenti/Movimento'
 
@@ -139,6 +140,8 @@ function SchermataSovrapposta({ vista }: { vista: Vista }) {
       return <ModuloPaziente id={vista.id} />
     case 'appuntamento':
       return <ModuloAppuntamento id={vista.id} data={vista.data} ora={vista.ora} pazienteId={vista.pazienteId} />
+    case 'fattura':
+      return <ModuloFattura pazienteId={vista.pazienteId} />
   }
 }
 

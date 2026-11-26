@@ -5,6 +5,8 @@ import { fatturaService } from '@desktop/lib/fatturaService'
 import type { InvoiceStatus } from '@desktop/types/fattura'
 import { useDati } from '../dati/hooks'
 import { VoceFattura } from '../componenti/VoceFattura'
+import { PulsanteNuovo } from '../componenti/Campi'
+import { apri } from '../navigazione'
 
 const FILTRI: { valore: InvoiceStatus | ''; etichetta: string }[] = [
   { valore: '', etichetta: 'Tutte' },
@@ -12,7 +14,7 @@ const FILTRI: { valore: InvoiceStatus | ''; etichetta: string }[] = [
   { valore: 'pagata', etichetta: 'Pagate' },
 ]
 
-/** Registro delle fatture in consultazione. L'emissione dal telefono userà `Fatturazione` del nucleo (src/sync). */
+/** Registro delle fatture, con l'emissione di una nuova dal pulsante in basso. */
 export function Fatture() {
   useDati()
   const [stato, setStato] = useState<InvoiceStatus | ''>('')
@@ -68,7 +70,7 @@ export function Fatture() {
         </div>
       )}
 
-      <p className="text-center text-xs text-gray-400 mt-4 px-6">L'emissione di nuove fatture dal telefono arriverà in un prossimo aggiornamento.</p>
+      <PulsanteNuovo etichetta="Nuova fattura" onClick={() => apri({ tipo: 'fattura' })} />
     </div>
   )
 }

@@ -17,6 +17,7 @@ export type Vista =
   | { tipo: 'cartella'; id: string }
   | { tipo: 'paziente'; id?: string }
   | { tipo: 'appuntamento'; id?: string; data?: string; ora?: string; pazienteId?: string }
+  | { tipo: 'fattura'; pazienteId?: string }
 
 // ─── Dove gira l'app ──────────────────────────────────────────────────────────
 
@@ -69,6 +70,14 @@ const livelloCorrente = (): number => {
 let chiusuraDallApp = false
 
 const iniziale = posizioneSalvata()
+
+// Ricaricando la pagina la voce corrente conserva il livello di prima, ma i
+// moduli aperti non si riaprono: il livello torna a quello che si ripristina
+// davvero (la cartella, o nulla). Altrimenti "indietro" da una schermata
+// aperta dopo il ricaricamento tornerebbe a una voce di livello più alto e
+// non chiuderebbe niente.
+const livelloRipristinabile = iniziale.pila.some((v) => v.tipo === 'cartella') ? 1 : 0
+if (livelloCorrente() > livelloRipristinabile) history.replaceState({ mmf: livelloRipristinabile }, '')
 
 export const useNavigazione = create<Navigazione>((set, get) => ({
   scheda: iniziale.scheda,

@@ -250,7 +250,10 @@ Aggiunto il 25/11/2026: `turno.ts` (§6.1), `bozze.ts` (§6.2), un unico ascolto
 
 Cambiato il 26/11/2026: il turno è sostituito da `fatturazione.ts`. Desktop e telefono fatturano insieme senza bloccarsi, il PC offline salva bozze, e sul numero doppio vince la fattura pubblicata per prima (46 test).
 
+Aggiunto il 26/11/2026: `modello.ts` con `estraiModello` (passo 4 del §8: il modello Word esce da `impostazioni` e va su Drive in chiaro, nell'archivio restano nome, peso e data) e il contratto `DepositoModello` (51 test). Il telefono emette le fatture cartacee e, se l'utente lo lascia attivo, genera e allega il `.docx` dal modello scaricato da Drive, dopo l'emissione e quindi col numero definitivo.
+
 Per la Fase 2 restano:
+- il modello Word sul desktop: dopo la configurazione il suo contenuto non è più nell'archivio sincronizzato, quindi il PC ne tiene una copia locale per generare le fatture e lo ricarica su Drive (`DepositoModello.carica`) quando l'utente lo cambia nelle Impostazioni;
 - l'eliminazione dei file di archivio più vecchi delle ultime N revisioni, compito dell'adattatore Drive;
 - il raggruppamento dei salvataggi ravvicinati (~300 ms) prima di avviare un ciclo;
 - la persistenza della `base` sul desktop.

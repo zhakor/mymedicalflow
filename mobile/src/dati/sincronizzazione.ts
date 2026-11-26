@@ -8,6 +8,9 @@ import { create } from 'zustand'
 import { codiceInChiave, importaChiave, type Archivio } from '@desktop/sync/cifratura'
 import { CloudInMemoria, type Connessione } from '@desktop/sync/memoria'
 import { MotoreSincronizzazione, type EsitoSincronizzazione } from '@desktop/sync/motore'
+import { Fatturazione } from '@desktop/sync/fatturazione'
+import { byteInBase64, estraiModello } from '@desktop/sync/modello'
+import type { DepositoModello } from '@desktop/sync/contratti'
 import { oggi, inOrario } from '@desktop/lib/agendaService'
 import type { Appointment } from '@desktop/types/appuntamento'
 import type { Patient } from '@desktop/types/paziente'
@@ -60,12 +63,14 @@ function registraErrore(err: unknown): void {
  */
 export class SimulatorePc {
   private locale: Archivio
+  private readonly client: ReturnType<CloudInMemoria['client']>
   readonly motore: MotoreSincronizzazione
 
   constructor(cloud: CloudInMemoria, chiave: CryptoKey, iniziale: Archivio) {
     this.locale = { ...iniziale }
+    this.client = cloud.client({ online: true })
     this.motore = new MotoreSincronizzazione({
-      ...cloud.client({ online: true }),
+      ...this.client,
       chiave,
       dispositivo: 'pc-simulato',
       leggiLocale: () => ({ ...this.locale }),
@@ -74,6 +79,17 @@ export class SimulatorePc {
       },
       risolviConflitti: async () => new Map(),
     })
+  }
+
+  /**
+   * Configurazione dal PC (CR §8, passo 4): il modello Word delle impostazioni
+   * va su Drive in chiaro, l'archivio (con i soli metadati) diventa la revisione 1.
+   */
+  async configura(): Promise<void> {
+    const { archivio, modello } = estraiModello(this.locale)
+    this.locale = archivio
+    if (modello) await this.client.modello.carica(modello)
+    await this.motore.inizializzaRemoto()
   }
 
   /** Aggiunge dal "PC" un appuntamento oggi, alla prima ora libera, e lo pubblica. */
@@ -110,6 +126,36 @@ export class SimulatorePc {
 
 let avviata = false
 let motoreTelefono: MotoreSincronizzazione | null = null
+let fatturazioneTelefono: Fatturazione | null = null
+let depositoModello: DepositoModello | null = null
+let modelloInMemoria: Promise<string | null> | null = null
+
+/**
+ * Il modello Word caricato dal PC alla configurazione, in base64 per
+ * `generateDocument`; null se il PC non ne ha caricato uno. Si scarica da
+ * Drive una volta per sessione; se lo scaricamento fallisce si riprova alla
+ * richiesta successiva.
+ */
+export function modelloFattura(): Promise<string | null> {
+  if (!depositoModello) return Promise.reject(new Error("L'archivio non è ancora pronto: riprova tra un istante."))
+  const deposito = depositoModello
+  modelloInMemoria ??= deposito.scarica().then((m) => (m ? byteInBase64(m.dati) : null))
+  modelloInMemoria.catch(() => {
+    modelloInMemoria = null
+  })
+  return modelloInMemoria
+}
+
+/**
+ * Emette una fattura (CR §6.1): `operazione` calcola il numero e la salva;
+ * prima si scarica l'ultima versione dal cloud, dopo si pubblica. Al termine
+ * il numero salvato è definitivo, anche se il PC ha appena usato lo stesso.
+ * Offline solleva `FatturazioneOffline`.
+ */
+export function emettiFattura<T>(operazione: () => Promise<T>): Promise<T> {
+  if (!fatturazioneTelefono) return Promise.reject(new Error("L'archivio non è ancora pronto: riprova tra un istante."))
+  return fatturazioneTelefono.usa(operazione)
+}
 
 /**
  * Aggiornamento forzato (gesto "tira per aggiornare"): rilegge il documento
@@ -138,11 +184,13 @@ export async function avviaModalitaSimulata(): Promise<void> {
     const chiave = await importaChiave(codiceInChiave(CODICE_PROVA))
 
     const simulatore = new SimulatorePc(cloud, chiave, archivioDemo())
-    await simulatore.motore.inizializzaRemoto()
+    await simulatore.configura()
 
     let collegato = false
+    const client = cloud.client(connessione)
+    depositoModello = client.modello
     const motore = new MotoreSincronizzazione({
-      ...cloud.client(connessione),
+      ...client,
       chiave,
       dispositivo: 'telefono',
       leggiLocale: leggiArchivio,
@@ -159,7 +207,10 @@ export async function avviaModalitaSimulata(): Promise<void> {
     await motore.collega()
     collegato = true
     motoreTelefono = motore
-    motore.ascolta()
+    // Il telefono lavora solo online: niente bozze da numerare
+    const fatturazione = new Fatturazione({ motore, onErrore: registraErrore })
+    fatturazioneTelefono = fatturazione
+    motore.ascolta(fatturazione.suCambio)
 
     let attesa: ReturnType<typeof setTimeout> | undefined
     suModificaUtente(() => {

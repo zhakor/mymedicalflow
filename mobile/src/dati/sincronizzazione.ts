@@ -273,6 +273,15 @@ async function avviaMotore(
     imposta({ sync: 'offline' })
   })
 
+  // In secondo piano iOS sospende la pagina e l'ascolto di Firestore si
+  // interrompe; al ritorno si riapre con un ritardo che non controlliamo.
+  // Intanto si rilegge lo stato dal server (una lettura): niente dati vecchi.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return
+    imposta({ sync: 'in-corso' })
+    motore.sincronizza({ fresco: true }).catch(registraErrore)
+  })
+
   imposta({ app: 'pronta', revisione: motore.revisione, aggiornatoIl: new Date().toISOString() })
 }
 

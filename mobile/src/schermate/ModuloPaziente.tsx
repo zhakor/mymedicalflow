@@ -89,7 +89,6 @@ export function ModuloPaziente({ id }: { id?: string }) {
   return (
     <Pagina
       titolo={modifica ? 'Modifica paziente' : 'Aggiungi paziente'}
-      ritorno="chiudi"
       piede={
         <>
           <Button variant="secondary" className="flex-1 tocco px-3 whitespace-nowrap" onClick={chiudi}>

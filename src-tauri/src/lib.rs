@@ -41,12 +41,14 @@ fn sanitize_file_name(raw: &str) -> String {
 }
 
 /// Salva il file .docx nella cartella specificata (o Desktop come fallback) e lo apre
-/// con l'applicazione predefinita (Word, LibreOffice, ecc.).
+/// con l'applicazione predefinita (Word, LibreOffice, ecc.). Con `open: false` lo
+/// salva soltanto: per i Word rigenerati da soli quando una bozza viene numerata.
 #[tauri::command]
 fn save_and_open_docx(
     file_name: String,
     base64_content: String,
     save_dir: Option<String>,
+    open: Option<bool>,
 ) -> Result<String, String> {
     let bytes = STANDARD
         .decode(base64_content.trim())
@@ -70,6 +72,10 @@ fn save_and_open_docx(
     let path = dest_dir.join(sanitize_file_name(&file_name));
 
     std::fs::write(&path, &bytes).map_err(|e| format!("Errore scrittura file: {e}"))?;
+
+    if open == Some(false) {
+        return Ok(path.to_string_lossy().into_owned());
+    }
 
     // `that_detached` passa il percorso come parametro (ShellExecuteW su Windows,
     // `open`/`xdg-open` altrove) e non lo fa mai interpretare da una shell.

@@ -54,6 +54,12 @@ export interface Invoice {
   invoiceType: InvoiceType
   generatedFile?: GeneratedInvoiceFile
   /**
+   * Emessa dal PC senza connessione (CR §6.2): `invoiceNumber` è provvisorio.
+   * Al ritorno della rete il PC la numera dopo l'ultima emessa, anche dal
+   * telefono, e se il numero cambia rigenera il Word.
+   */
+  bozza?: boolean
+  /**
    * Dati richiesti dal Sistema Tessera Sanitaria.
    * La presenza di questo oggetto significa "soggetta a trasmissione": non è
    * un terzo tipo di fattura, che resta cartacea o elettronica.

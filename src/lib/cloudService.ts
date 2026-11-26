@@ -28,6 +28,12 @@ import { registroFirestore } from '../sync/firestore'
 import { configuraDalDesktop, type EsitoConfigurazione } from '../sync/configurazione'
 import { MotoreSincronizzazione, type EsitoSincronizzazione, type StatoSincronizzato } from '../sync/motore'
 import { estraiModello, reinserisciModello } from '../sync/modello'
+import { Fatturazione, FatturazioneOffline } from '../sync/fatturazione'
+import { novitaArrivate } from '../sync/novita'
+import { useNotificheStore } from '../stores/notificheStore'
+import { oggi } from './agendaService'
+import { fatturaService } from './fatturaService'
+import { aggiornaWord } from './wordFatturaService'
 import { codiceRecupero } from './backupService'
 import { sostituisciArchivio, storageService, suModificaUtente } from './storageService'
 import { useSincronizzazioneStore } from '../stores/sincronizzazioneStore'
@@ -165,6 +171,52 @@ const imposta = useSincronizzazioneStore.setState
 
 let attiva: { smetti: () => void } | null = null
 let avvio: Promise<void> | null = null
+let fatturazione: Fatturazione | null = null
+let motoreAttivo: MotoreSincronizzazione | null = null
+
+/**
+ * Emissione di una fattura dal PC (CR §6.1). `operazione` calcola il numero e
+ * salva: con la sincronizzazione attiva gira dopo aver scaricato l'ultima
+ * versione dal cloud e prima di pubblicare, così il numero non è già stato
+ * preso dal telefono. Senza connessione solleva `FatturazioneOffline`: la
+ * fattura va salvata come bozza. `pubblicata` è falso se la rete è caduta fra
+ * il salvataggio e la pubblicazione: anche quella fattura va trattata come
+ * bozza. Senza sincronizzazione configurata, come prima.
+ */
+export async function emettiFatturaPc<T>(operazione: () => Promise<T>): Promise<{ risultato: T; pubblicata: boolean }> {
+  if (!leggiConfigurazione()?.radice) return { risultato: await operazione(), pubblicata: true }
+  if (!fatturazione || !motoreAttivo) throw new FatturazioneOffline()
+  const motore = motoreAttivo
+  const risultato = await fatturazione.usa(operazione)
+  return { risultato, pubblicata: !motore.inAttesa }
+}
+
+/** Con la sincronizzazione configurata il numero si assegna al salvataggio. */
+export const numerazioneAutomatica = (): boolean => !!leggiConfigurazione()?.radice
+
+/** Dopo una numerazione o rinumerazione: Word col numero giusto e avviso. */
+async function dopoCambioNumero(fatture: { id: string; da?: string }[], comeBozze: boolean): Promise<void> {
+  for (const { id, da } of fatture) {
+    const f = fatturaService.getById(id)
+    if (!f) continue
+    let word = false
+    try {
+      word = await aggiornaWord(f)
+    } catch (err) {
+      registraErrore(err)
+    }
+    const testo = comeBozze
+      ? `Bozza numerata: fattura ${f.invoiceNumber}${da && da !== f.invoiceNumber ? ` (era ${da})` : ''}.`
+      : `La fattura ${da} è diventata ${f.invoiceNumber}: il telefono aveva appena usato quel numero.`
+    useFatturaStore.getState().showFeedback(word ? `${testo} Word aggiornato nella cartella delle fatture.` : testo)
+  }
+  if (fatture.length > 0) ricaricaSchermate()
+}
+
+/** Bozze emesse offline (CR §6.2): numerate dopo l'ultima emessa, anche dal telefono. */
+async function numeraBozze(): Promise<void> {
+  await dopoCambioNumero(fatturaService.numberDrafts(oggi(), new Date().toISOString()), true)
+}
 
 /**
  * Collega il PC all'archivio su Drive e lo tiene allineato: pubblica le
@@ -181,7 +233,19 @@ export function avviaSincronizzazione(): Promise<void> {
 export function fermaSincronizzazione(): void {
   attiva?.smetti()
   attiva = null
+  fatturazione = null
+  motoreAttivo = null
   imposta({ stato: 'spenta', revisione: null })
+}
+
+// Partita senza rete (o con Google irraggiungibile) si ritenta da sola: al
+// ritorno della connessione e, nel dubbio, ogni minuto finché resta offline.
+if (typeof window !== 'undefined') {
+  const riprova = () => {
+    if (!attiva && useSincronizzazioneStore.getState().stato === 'offline') void avviaSincronizzazione()
+  }
+  window.addEventListener('online', riprova)
+  setInterval(riprova, 60_000)
 }
 
 /** Ripresa dopo un errore o un nuovo accesso (pulsante nella scheda). */
@@ -234,8 +298,13 @@ async function baseIniziale(drive: Drive, cartelle: Cartelle, chiave: CryptoKey)
 }
 
 function registraEsito(esito: EsitoSincronizzazione): void {
-  if (esito.tipo === 'offline') imposta({ stato: 'offline', errore: null })
-  else imposta({ stato: 'allineato', revisione: esito.revisione, aggiornatoIl: new Date().toISOString(), errore: null })
+  if (esito.tipo === 'offline') {
+    imposta({ stato: 'offline', errore: null })
+    return
+  }
+  imposta({ stato: 'allineato', revisione: esito.revisione, aggiornatoIl: new Date().toISOString(), errore: null })
+  // Fatture del PC rinumerate perché il telefono aveva pubblicato lo stesso numero
+  if (esito.rinumerate.length > 0) void dopoCambioNumero(esito.rinumerate, false)
 }
 
 function registraErrore(err: unknown): void {
@@ -268,12 +337,14 @@ async function collegaMotore(): Promise<void> {
       statoIniziale,
       leggiLocale: archivioDaPubblicare,
       scriviLocale: (arrivato) => {
+        const prima = storageService.istantanea()
         // Arriva senza il modello Word: si riprende quello del PC. La cache
         // cambia subito, la scrittura su disco segue.
-        sostituisciArchivio(JSON.stringify(reinserisciModello(arrivato, storageService.istantanea()))).catch(
-          registraErrore,
-        )
+        sostituisciArchivio(JSON.stringify(reinserisciModello(arrivato, prima))).catch(registraErrore)
         ricaricaSchermate()
+        // Pazienti, appuntamenti e fatture nuovi: notifica in basso a destra
+        const novita = novitaArrivate(prima, arrivato)
+        if (novita.length > 0) useNotificheStore.getState().aggiungi(novita)
       },
       salvaStato: salvaBase,
       // TODO Fase 3: finestra dei conflitti. Per ora prevale l'altro dispositivo.
@@ -309,7 +380,14 @@ async function collegaMotore(): Promise<void> {
         sincronizza()
       }, 300)
     })
-    const smettiAscolto = motore.ascolta()
+    // Unico ascolto: le notifiche arrivano solo online, il momento di numerare le bozze
+    fatturazione = new Fatturazione({
+      motore,
+      bozze: { inSospeso: () => fatturaService.hasDrafts(), numera: numeraBozze },
+      onErrore: registraErrore,
+    })
+    const smettiAscolto = motore.ascolta(fatturazione.suCambio)
+    motoreAttivo = motore
     window.addEventListener('online', sincronizza)
 
     attiva = {

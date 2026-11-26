@@ -5,6 +5,7 @@ import { pazienteService } from '../lib/pazienteService'
 import { fatturaService } from '../lib/fatturaService'
 import { appuntamentoService } from '../lib/appuntamentoService'
 import { IndicatoreCopie } from '../features/backup/IndicatoreCopie'
+import { IndicatoreSincronizzazione } from '../features/sincronizzazione/IndicatoreSincronizzazione'
 import { salutoPerSesso } from '../types'
 import { Users, Calendar, FileText } from 'lucide-react'
 import { iconaWhite, iconaBlue, logoBianco, logoBlu } from '../assets/logos'
@@ -67,7 +68,8 @@ export function DashboardPage() {
           )}
         </div>
 
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex items-center gap-2">
+          <IndicatoreSincronizzazione />
           <IndicatoreCopie />
         </div>
       </div>

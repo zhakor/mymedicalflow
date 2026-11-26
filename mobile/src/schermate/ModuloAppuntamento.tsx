@@ -191,7 +191,6 @@ export function ModuloAppuntamento({ id, data, ora, pazienteId }: { id?: string;
   return (
     <Pagina
       titolo={modifica ? 'Modifica appuntamento' : 'Nuovo appuntamento'}
-      ritorno="chiudi"
       piede={
         <>
           {modifica ? (

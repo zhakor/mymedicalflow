@@ -82,7 +82,7 @@ function SchermataSovrapposta({ vista }: { vista: Vista }) {
 export function App() {
   const online = useOnline()
   const { app, errore } = useSincronizzazione()
-  const { pila, scheda, vaiA, uscitaAnimata } = useNavigazione()
+  const { pila, scheda, vaiA } = useNavigazione()
 
   useEffect(() => {
     if (online) void (GOOGLE ? avviaModalitaGoogle() : avviaModalitaSimulata())
@@ -109,7 +109,7 @@ export function App() {
       {!online ? (
         <Offline />
       ) : app === 'pronta' ? (
-        <Principale scheda={scheda} setScheda={vaiA} pila={pila} uscitaAnimata={uscitaAnimata} />
+        <Principale scheda={scheda} setScheda={vaiA} pila={pila} />
       ) : (
         <PrimaDeiDati fase={app} errore={errore} />
       )}
@@ -134,7 +134,7 @@ function PrimaDeiDati({ fase, errore }: { fase: Exclude<FaseApp, 'pronta'>; erro
   }
 }
 
-function Principale({ scheda, setScheda, pila, uscitaAnimata }: { scheda: Scheda; setScheda: (s: Scheda) => void; pila: Vista[]; uscitaAnimata: boolean }) {
+function Principale({ scheda, setScheda, pila }: { scheda: Scheda; setScheda: (s: Scheda) => void; pila: Vista[] }) {
   return (
     <>
       <Layout scheda={scheda} onScheda={setScheda}>
@@ -144,9 +144,8 @@ function Principale({ scheda, setScheda, pila, uscitaAnimata }: { scheda: Scheda
         {scheda === 'fatture' && <Fatture />}
         {scheda === 'altro' && <Altro />}
       </Layout>
-      {/* Ogni schermata aperta sta sopra la precedente: la pila si chiude con "indietro".
-          `custom` dice a chi esce se animare: dopo il gesto di Safari sparisce subito. */}
-      <AnimatePresence custom={uscitaAnimata}>
+      {/* Ogni schermata aperta sta sopra la precedente: la pila si chiude con "indietro". */}
+      <AnimatePresence>
         {pila.map((v, i) => (
           <div key={i} className="relative" style={{ zIndex: 30 + i }}>
             <SchermataSovrapposta vista={v} />

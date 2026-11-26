@@ -1,4 +1,5 @@
 import { storageService } from './storageService'
+import { numeraBozze } from '../sync/bozze'
 import { sistemaTsService } from './sistemaTsService'
 import type {
   Invoice,
@@ -127,9 +128,10 @@ export const fatturaService = {
   /**
    * Restituisce il prossimo numero fattura disponibile nel formato "N/YYYY".
    */
+  /** Il prossimo numero definitivo: le bozze hanno numeri provvisori e non contano. */
   getNextInvoiceNumber(): string {
     const year = new Date().getFullYear()
-    const all = getAll()
+    const all = getAll().filter((inv) => !inv.bozza)
     const thisYear = all.filter((inv) =>
       inv.invoiceNumber?.endsWith(`/${year}`),
     )
@@ -141,6 +143,41 @@ export const fatturaService = {
       }),
     )
     return `${maxNum + 1}/${year}`
+  },
+
+  /**
+   * Numero provvisorio per una bozza emessa offline: dopo le definitive e le
+   * altre bozze, così due bozze non si confondono. Al ritorno della rete
+   * `numberDrafts` assegna quello definitivo.
+   */
+  getNextDraftNumber(): string {
+    const year = new Date().getFullYear()
+    const progressivo = (n: string) => parseInt(n.split('/')[0], 10) || 0
+    const massimo = Math.max(
+      0,
+      ...getAll()
+        .filter((inv) => inv.invoiceNumber?.endsWith(`/${year}`))
+        .map((inv) => progressivo(inv.invoiceNumber)),
+    )
+    return `${massimo + 1}/${year}`
+  },
+
+  hasDrafts(): boolean {
+    return getAll().some((inv) => inv.bozza)
+  },
+
+  /**
+   * Numera le bozze dopo l'ultima fattura emessa (CR §6.2): va chiamata con
+   * l'archivio appena allineato col cloud. Per ogni bozza numerata: id e
+   * numero provvisorio di prima (`da`).
+   */
+  numberDrafts(oggi: string, adesso: string): { id: string; da: string }[] {
+    const tutte = getAll()
+    const { fatture, numerate } = numeraBozze(tutte, oggi, adesso)
+    if (numerate.length === 0) return []
+    saveAll(fatture)
+    const provvisori = new Map(tutte.map((f) => [f.id, f.invoiceNumber]))
+    return numerate.map((n) => ({ id: n.id, da: provvisori.get(n.id) ?? '' }))
   },
 
   /**

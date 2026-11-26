@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronRight, Search, X } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Search } from 'lucide-react'
 import { clsx } from 'clsx'
 import { AnimatePresence, motion } from 'motion/react'
 import { SPINTA, USCITA } from './Movimento'
@@ -53,15 +53,15 @@ export function SelettorePaziente({
       <AnimatePresence>
       {aperto && (
         <motion.div
-          initial={{ y: '100%' }}
-          animate={{ y: 0, transition: SPINTA }}
-          exit={{ y: '100%', transition: USCITA }}
+          initial={{ x: '100%' }}
+          animate={{ x: 0, transition: SPINTA }}
+          exit={{ x: '100%', transition: USCITA }}
           className="fixed inset-0 z-50 flex flex-col bg-[var(--fondo-app)]"
         >
           <div className="relative z-10 shrink-0 pt-[env(safe-area-inset-top)] testata px-3 pb-3">
             <div className="h-14 flex items-center gap-1">
-              <button type="button" onClick={() => setAperto(false)} className="tocco flex items-center justify-center rounded-xl text-gray-600 dark:text-gray-300" aria-label="Chiudi">
-                <X size={22} />
+              <button type="button" onClick={() => setAperto(false)} className="tocco flex items-center justify-center rounded-xl text-gray-600 dark:text-gray-300" aria-label="Indietro">
+                <ArrowLeft size={22} />
               </button>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Scegli paziente</h2>
             </div>

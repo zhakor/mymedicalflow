@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { decifraArchivio, importaChiave, type Archivio } from './cifratura'
 import { idConflitto, type Conflitto, type Scelta } from './fusione'
 import { CloudInMemoria, type Connessione } from './memoria'
-import { MotoreSincronizzazione } from './motore'
+import { COPIE_DA_TENERE, MotoreSincronizzazione } from './motore'
 
 interface Rec {
   id: string
@@ -103,6 +103,39 @@ describe('tempo reale', () => {
     expect(desktop.lista('pazienti').map((p) => p.nome)).toEqual(['Rossi', 'Bianchi', 'Verdi'])
     expect(desktop.motore.revisione).toBe(2)
     smetti()
+  })
+
+  it('due pubblicazioni ravvicinate del desktop: il mobile arriva all\'ultima (bozza poi numerata)', async () => {
+    const { desktop, mobile } = await scenario()
+    const smetti = mobile.motore.ascolta()
+
+    // Revisione 2: la bozza; revisione 3, subito dopo, la bozza numerata
+    desktop.scrivi('fatture', [{ id: 'b', invoiceNumber: '2/2026' }])
+    await desktop.motore.sincronizza()
+    await notifiche() // il mobile parte a scaricare la 2…
+    desktop.scrivi('fatture', [{ id: 'b', invoiceNumber: '3/2026' }])
+    await desktop.motore.sincronizza() // …e intanto arriva la 3
+
+    for (let i = 0; i < 5; i++) {
+      await notifiche()
+      await mobile.motore.inattivo()
+    }
+    expect(mobile.motore.revisione).toBe(3)
+    expect(mobile.lista('fatture')).toEqual([{ id: 'b', invoiceNumber: '3/2026' }])
+    smetti()
+  })
+
+  it('su Drive restano solo gli ultimi 5 archivi, sempre compreso quello attuale', async () => {
+    const { cloud, desktop } = await scenario()
+    for (let i = 0; i < 7; i++) {
+      desktop.scrivi('pazienti', [...desktop.lista('pazienti'), { id: `n${i}`, nome: `Nuovo ${i}` }])
+      await desktop.motore.sincronizza()
+    }
+    for (let i = 0; i < 5; i++) await notifiche()
+    expect(cloud.puntatore?.revisione).toBe(8)
+    expect(cloud.file.size).toBe(COPIE_DA_TENERE)
+    expect(cloud.file.has(cloud.puntatore!.fileId)).toBe(true)
+    expect([...cloud.file.keys()].map((id) => Number(id.split('-')[1])).sort((a, b) => a - b)).toEqual([4, 5, 6, 7, 8])
   })
 
   it('senza modifiche non pubblica nulla', async () => {

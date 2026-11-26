@@ -21,6 +21,11 @@ import {
 import { fondi, rinumeraFattureDuplicate, type Conflitto, type Rinumerazione, type Scelta } from './fusione'
 
 const MAX_TENTATIVI = 5
+/**
+ * Archivi tenuti su Drive (CR §4.1): l'attuale e i precedenti, per ripristinare
+ * una versione recente. I più vecchi vanno nel cestino di Drive.
+ */
+export const COPIE_DA_TENERE = 5
 
 /** Ultima versione allineata con il cloud. Il desktop la conserva fra un avvio e l'altro. */
 export interface StatoSincronizzato {
@@ -186,6 +191,21 @@ export class MotoreSincronizzazione {
     return risultato
   }
 
+  /**
+   * Dopo una pubblicazione, in sottofondo: tiene gli ultimi `COPIE_DA_TENERE`
+   * archivi e cestina gli altri. Mai quello appena pubblicato. Gli errori si
+   * ignorano: ci riprova la pubblicazione successiva, anche dall'altro dispositivo.
+   */
+  private pulisciCopie(pubblicato: string): void {
+    void this.o.deposito
+      .elenca()
+      .then(async (archivi) => {
+        const vecchi = archivi.sort((a, b) => b.revisione - a.revisione).slice(COPIE_DA_TENERE)
+        for (const a of vecchi) if (a.id !== pubblicato) await this.o.deposito.cestina(a.id).catch(() => {})
+      })
+      .catch(() => {})
+  }
+
   private puntatore(revisione: number, fileId: string): Puntatore {
     return { revisione, fileId, dispositivo: this.o.dispositivo, aggiornatoIl: this.adesso() }
   }
@@ -233,6 +253,7 @@ export class MotoreSincronizzazione {
           continue
         }
         if (this.inAscolto) this.ultimoNoto = pubblicando
+        this.pulisciCopie(fileId)
         pubblicato = true
         rinumerate = [...rinumerate, ...rinumerazione.rinumerate]
         await this.adotta(finale, nuovo, istantanea)

@@ -7,6 +7,7 @@ interface Rec {
   nome?: string
   invoiceNumber?: string
   updatedAt?: string
+  bozza?: boolean
 }
 
 const arr = (...r: Rec[]) => JSON.stringify(r)
@@ -121,6 +122,24 @@ describe('fatture con lo stesso numero', () => {
     }
     const { rinumerate } = rinumeraFattureDuplicate(fuso, remoto, adesso)
     expect(rinumerate.map((r) => r.a)).toEqual(['11/2026', '12/2026'])
+  })
+
+  it('ignora le bozze del PC: niente buchi nella serie e nessuna bozza rinumerata (caso del 26/11)', () => {
+    // PC offline: elettronica 5 salvata ma non pubblicata, cartacea bozza 6 provvisoria.
+    // Intanto il telefono ha pubblicato la sua 5.
+    const remoto: Archivio = { fatture: arr({ id: 'tel', invoiceNumber: '5/2026' }) }
+    const fuso: Archivio = {
+      fatture: arr(
+        { id: 'tel', invoiceNumber: '5/2026' },
+        { id: 'pc-e', invoiceNumber: '5/2026' },
+        { id: 'pc-bozza', invoiceNumber: '6/2026', bozza: true },
+        { id: 'pc-bozza-2', invoiceNumber: '5/2026', bozza: true },
+      ),
+    }
+    const { archivio, rinumerate } = rinumeraFattureDuplicate(fuso, remoto, adesso)
+    expect(rinumerate).toEqual([{ id: 'pc-e', da: '5/2026', a: '6/2026' }])
+    const bozze = lista(archivio, 'fatture').filter((f) => f.bozza)
+    expect(bozze.map((f) => f.invoiceNumber)).toEqual(['6/2026', '5/2026'])
   })
 
   it('non tocca nulla senza doppioni', () => {

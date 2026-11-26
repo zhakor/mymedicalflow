@@ -130,6 +130,8 @@ interface FatturaMinima {
   id: string
   invoiceNumber: string
   updatedAt?: string
+  /** Bozza del PC offline: numero provvisorio, lo assegna `numeraBozze`. */
+  bozza?: boolean
 }
 
 function parteNumero(numero: string): { progressivo: number; anno: string } {
@@ -144,6 +146,10 @@ function parteNumero(numero: string): { progressivo: number; anno: string } {
  * `remoto`); quelle nate su questo dispositivo prendono il primo numero libero
  * dello stesso anno. Restituisce l'archivio aggiornato e le rinumerazioni, da
  * mostrare all'utente: un documento già generato va rifatto.
+ *
+ * Le bozze restano fuori: il loro numero è provvisorio e non deve né
+ * spostare il "primo numero libero" (lascerebbe buchi nella serie) né essere
+ * rinumerato qui, perché alle bozze ci pensa `numeraBozze`.
  */
 export function rinumeraFattureDuplicate(
   archivio: Archivio,
@@ -155,16 +161,17 @@ export function rinumeraFattureDuplicate(
 
   const fatture = JSON.parse(grezzo) as FatturaMinima[]
   const pubblicate = comeRecord(remoto[CHIAVE_FATTURE]) ?? new Map<string, string>()
+  const definitive = fatture.filter((f) => !f.bozza)
 
   const perNumero = new Map<string, FatturaMinima[]>()
-  for (const f of fatture) {
+  for (const f of definitive) {
     const gruppo = perNumero.get(f.invoiceNumber) ?? []
     gruppo.push(f)
     perNumero.set(f.invoiceNumber, gruppo)
   }
 
   const massimoPerAnno = new Map<string, number>()
-  for (const f of fatture) {
+  for (const f of definitive) {
     const { progressivo, anno } = parteNumero(f.invoiceNumber)
     massimoPerAnno.set(anno, Math.max(massimoPerAnno.get(anno) ?? 0, progressivo))
   }

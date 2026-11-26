@@ -133,8 +133,11 @@ describe('Drive: archivi e modello', () => {
     expect(finto.file.get(secondo)).toMatchObject({ appProperties: { mmf_type: 'archivio', mmf_rev: '2' } })
     expect(finto.file.get(secondo)!.name).toMatch(/^archivio-2-.+\.mmfbak$/)
 
+    expect((await deposito.elenca()).map((a) => a.revisione).sort()).toEqual([1, 2])
+
     await deposito.cestina(primo)
     expect(finto.file.get(primo)!.trashed).toBe(true)
+    expect(await deposito.elenca()).toEqual([{ id: secondo, revisione: 2 }])
   })
 
   it("ritrova l'archivio di una revisione passata, ma non quelli nel cestino", async () => {

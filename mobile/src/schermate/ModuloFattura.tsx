@@ -314,7 +314,7 @@ export function ModuloFattura({ id, pazienteId }: { id?: string; pazienteId?: st
 
   if (id && !originale) {
     return (
-      <Pagina titolo="Fattura" ritorno="chiudi">
+      <Pagina titolo="Fattura">
         <p className="px-6 py-14 text-center text-sm text-gray-500 dark:text-gray-400">
           Questa fattura non esiste più: è stata eliminata da un altro dispositivo.
         </p>
@@ -337,7 +337,6 @@ export function ModuloFattura({ id, pazienteId }: { id?: string; pazienteId?: st
   return (
     <Pagina
       titolo={modifica ? 'Modifica fattura' : 'Nuova fattura'}
-      ritorno="chiudi"
       piede={
         <>
           {modifica ? (
@@ -601,7 +600,6 @@ function FatturaEmessa({ fattura: f }: { fattura: Invoice }) {
   return (
     <Pagina
       titolo="Fattura emessa"
-      ritorno="chiudi"
       piede={
         <>
           {f.generatedFile && (

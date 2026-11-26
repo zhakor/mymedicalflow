@@ -20,8 +20,10 @@ export interface DepositoFile {
   /** Crea un NUOVO file e ne restituisce l'id. */
   carica(revisione: number, dati: Byte): Promise<string>
   scarica(fileId: string): Promise<Byte>
-  /** Rimuove un file caricato ma mai pubblicato. */
+  /** Rimuove un file caricato ma mai pubblicato, o una copia oltre le ultime. */
   cestina(fileId: string): Promise<void>
+  /** Gli archivi presenti, con la loro revisione (per tenere solo gli ultimi). */
+  elenca(): Promise<{ id: string; revisione: number }[]>
 }
 
 /** Il modello Word delle fatture cartacee. */

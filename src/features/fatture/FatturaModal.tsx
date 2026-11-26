@@ -18,6 +18,9 @@ import { useImpostazioniStore } from '../../stores/impostazioniStore'
 import { PazienteOmonimoModal } from './PazienteOmonimoModal'
 import { RiepilogoPresenze } from './RiepilogoPresenze'
 import { sistemaTsService } from '../../lib/sistemaTsService'
+import { emettiFatturaPc, numerazioneAutomatica } from '../../lib/cloudService'
+import { aggiornaWord } from '../../lib/wordFatturaService'
+import { FatturazioneOffline } from '../../sync/fatturazione'
 import type { DatiSistemaTs } from '../../types/sistemaTs'
 import type { Patient } from '../../types/paziente'
 
@@ -101,6 +104,8 @@ interface FatturaModalProps {
 export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: FatturaModalProps) {
   const isEdit = !!invoice
   const { impostazioni } = useImpostazioniStore()
+  // Con la sincronizzazione il numero non si sceglie: si assegna al salvataggio (CR §6.1)
+  const [automatica] = useState(numerazioneAutomatica)
 
   const [form, setForm] = useState<FormState>(
     invoice ? invoiceToForm(invoice) : {
@@ -222,10 +227,12 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const input = buildInput()
     const errs = validateInvoice(input, isEdit ? invoice!.id : undefined)
+    // Il numero automatico si controlla al salvataggio, con i dati del cloud
+    if (automatica && !isEdit) delete errs.invoiceNumber
     if (hasInvoiceErrors(errs)) {
       setErrors(errs)
       return
@@ -235,13 +242,54 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
       if (isEdit) {
         fatturaService.update(invoice!.id, input)
         onSaved('Fattura aggiornata con successo.')
-      } else {
+      } else if (!automatica) {
         fatturaService.create(input)
         onSaved('Fattura aggiunta con successo.')
+      } else {
+        onSaved(await emettiConNumeroAutomatico(input))
       }
+    } catch (err) {
+      setGenerateError(`Fattura non salvata: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setSaving(false)
     }
+  }
+
+  /**
+   * Il numero definitivo si calcola dopo aver scaricato le fatture del
+   * telefono; senza connessione la fattura diventa una bozza con un numero
+   * provvisorio. Se il Word era stato generato con un altro numero, si
+   * rigenera con quello giusto.
+   */
+  async function emettiConNumeroAutomatico(input: InvoiceInput): Promise<string> {
+    let creata: Invoice
+    let bozza = false
+    let rete = 'Senza connessione'
+    try {
+      const { risultato, pubblicata } = await emettiFatturaPc(async () =>
+        fatturaService.create({ ...input, invoiceNumber: fatturaService.getNextInvoiceNumber() }),
+      )
+      creata = risultato
+      if (!pubblicata) {
+        // La rete è caduta fra il salvataggio e la pubblicazione: il telefono
+        // potrebbe usare lo stesso numero, quindi è provvisorio come in una bozza
+        creata = fatturaService.update(creata.id, { bozza: true }) ?? creata
+        bozza = true
+        rete = 'La connessione si è interrotta durante il salvataggio'
+      }
+    } catch (err) {
+      if (!(err instanceof FatturazioneOffline)) throw err
+      creata = fatturaService.create({ ...input, invoiceNumber: fatturaService.getNextDraftNumber(), bozza: true })
+      bozza = true
+    }
+    const word = await aggiornaWord(creata).catch(() => false)
+    const n = creata.invoiceNumber
+    const conWord = word ? ' Il Word è stato rigenerato con questo numero.' : ''
+    if (bozza) {
+      return `${rete}: salvata come bozza con il numero provvisorio ${n}. Al ritorno della rete prende il numero definitivo (e il Word si aggiorna se cambia).${conWord}`
+    }
+    if (n !== input.invoiceNumber) return `Fattura ${n} aggiunta: il ${input.invoiceNumber} era appena stato usato dal telefono.${conWord}`
+    return 'Fattura aggiunta con successo.'
   }
 
   async function handleGenerate() {
@@ -399,9 +447,16 @@ export function FatturaModal({ invoice, templateBase64, onClose, onSaved }: Fatt
                 required
                 placeholder="Es. 1/2026"
                 value={form.invoiceNumber}
-                disabled={identitaBloccata}
+                disabled={identitaBloccata || automatica}
                 onChange={(e) => set('invoiceNumber', e.target.value)}
                 error={errors.invoiceNumber}
+                hint={
+                  invoice?.bozza
+                    ? 'Provvisorio: il numero definitivo arriva al ritorno della rete.'
+                    : automatica && !isEdit
+                      ? 'Assegnato al salvataggio, dopo le fatture del telefono.'
+                      : undefined
+                }
               />
             </div>
 

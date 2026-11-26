@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Sidebar, type NavRoute } from './Sidebar'
+import { NotificheTelefono } from './NotificheTelefono'
 import { clsx } from 'clsx'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -14,7 +15,13 @@ export function AppLayout({ children, activeRoute, onNavigate }: AppLayoutProps)
   const [collapsed, setCollapsed] = useState(false)
 
   return (
-    <div className="flex h-full overflow-hidden bg-gray-100 dark:bg-gray-950">
+    <div className="flex h-full overflow-hidden bg-gray-100 dark:bg-transparent">
+      {/* Solo in scuro: i bagliori tenui del telefono, dietro al vetro delle card */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 hidden overflow-hidden dark:block">
+        <div className="absolute -top-40 left-1/4 h-[32rem] w-[32rem] rounded-full bg-teal-700/25 blur-3xl" />
+        <div className="absolute top-1/3 -right-40 h-[36rem] w-[36rem] rounded-full bg-cyan-900/25 blur-3xl" />
+        <div className="absolute -bottom-48 left-1/2 h-[32rem] w-[32rem] rounded-full bg-emerald-900/20 blur-3xl" />
+      </div>
       {/* Sidebar wrapper — anima la larghezza */}
       <div
         className={clsx(
@@ -43,6 +50,8 @@ export function AppLayout({ children, activeRoute, onNavigate }: AppLayoutProps)
           {children}
         </div>
       </main>
+
+      <NotificheTelefono />
     </div>
   )
 }

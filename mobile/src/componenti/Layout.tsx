@@ -69,7 +69,7 @@ export function Layout({ scheda, onScheda, children }: LayoutProps) {
   return (
     <div className="relative h-full">
       {/* Il contenuto scorre sotto testata e barra: il vetro lo lascia intravedere. */}
-      <main ref={scorrimento} className="absolute inset-0 overflow-y-auto overscroll-contain pt-[var(--testata)] pb-[var(--barra)]">
+      <main ref={scorrimento} className="absolute inset-0 overflow-y-auto overscroll-contain pt-[calc(var(--testata)+0.75rem)] pb-[var(--barra)]">
         {/* In sequenza: la scheda uscente sparisce in fretta, poi entra la nuova. Mai sovrapposte. */}
         <motion.div style={{ y: tiro }}>
           <AnimatePresence mode="wait" initial={false}>

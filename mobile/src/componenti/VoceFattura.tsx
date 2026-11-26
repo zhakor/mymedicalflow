@@ -31,7 +31,10 @@ export function VoceFattura({ fattura: f, conPaziente = false }: { fattura: Invo
         className="flex-1 min-w-0 text-left"
       >
         <div className="flex items-baseline justify-between gap-2">
-          <p className="font-semibold text-gray-900 dark:text-white">n. {f.invoiceNumber}</p>
+          <p className="font-semibold text-gray-900 dark:text-white">
+            n. {f.invoiceNumber}
+            {f.bozza && <span className="ml-1.5 text-xs font-medium text-amber-600"> · bozza del PC</span>}
+          </p>
           <p className="font-semibold text-gray-900 dark:text-white tabular-nums">{euro(f.amount + (f.stampDuty ?? 0))}</p>
         </div>
         {conPaziente && (

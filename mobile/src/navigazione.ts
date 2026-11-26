@@ -19,30 +19,11 @@ export type Vista =
   | { tipo: 'appuntamento'; id?: string; data?: string; ora?: string; pazienteId?: string }
   | { tipo: 'fattura'; id?: string; pazienteId?: string }
 
-// ─── Dove gira l'app ──────────────────────────────────────────────────────────
-
-const iOS =
-  /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.userAgent.includes('Macintosh') && navigator.maxTouchPoints > 1)
-const installata =
-  (navigator as Navigator & { standalone?: boolean }).standalone === true || matchMedia('(display-mode: standalone)').matches
-
-/**
- * Dentro Safari su iPhone il bordo sinistro ha già il gesto "indietro" del
- * browser, con la sua animazione: il nostro farebbe un secondo movimento
- * sovrapposto. Installata sulla Home quel gesto non c'è, e serve il nostro.
- */
-const gestoIndietroDelBrowser = iOS && !installata
-
 // ─── Stato ────────────────────────────────────────────────────────────────────
 
 interface Navigazione {
   scheda: Scheda
   pila: Vista[]
-  /**
-   * Se la prossima schermata che si chiude deve uscire con l'animazione. È
-   * falso quando la chiusura arriva dal gesto di Safari, che ha già animato.
-   */
-  uscitaAnimata: boolean
   vaiA: (s: Scheda) => void
   apri: (v: Vista) => void
   /** Chiude la schermata in cima, passando dalla cronologia. */
@@ -67,8 +48,6 @@ const livelloCorrente = (): number => {
   return typeof st?.mmf === 'number' ? st.mmf : 0
 }
 
-let chiusuraDallApp = false
-
 const iniziale = posizioneSalvata()
 
 // Ricaricando la pagina la voce corrente conserva il livello di prima, ma i
@@ -82,25 +61,19 @@ if (livelloCorrente() > livelloRipristinabile) history.replaceState({ mmf: livel
 export const useNavigazione = create<Navigazione>((set, get) => ({
   scheda: iniziale.scheda,
   pila: [],
-  uscitaAnimata: true,
   vaiA: (scheda) => set({ scheda }),
   apri: (v) => {
     const livello = get().pila.length + 1
     history.pushState({ mmf: livello }, '')
     set((s) => ({ pila: [...s.pila, v] }))
   },
-  chiudi: () => {
-    chiusuraDallApp = true
-    history.back()
-  },
+  chiudi: () => history.back(),
 }))
 
 window.addEventListener('popstate', () => {
-  const animata = chiusuraDallApp || !gestoIndietroDelBrowser
-  chiusuraDallApp = false
   // La pila si accorcia fino al livello della voce raggiunta: robusto anche se
   // la cronologia ha voci in più (per esempio dopo un ricaricamento).
-  useNavigazione.setState((s) => ({ pila: s.pila.slice(0, livelloCorrente()), uscitaAnimata: animata }))
+  useNavigazione.setState((s) => ({ pila: s.pila.slice(0, livelloCorrente()) }))
 })
 
 /**

@@ -111,6 +111,11 @@ export class Drive {
       cestina: async (fileId) => {
         await this.json(`${API}/files/${fileId}?fields=id`, { method: 'PATCH', body: JSON.stringify({ trashed: true }) })
       },
+      // I più recenti per primi: con molti file la prima pagina ha quelli da tenere
+      elenca: async () =>
+        (
+          await this.cerca(`'${cartelle.archivio}' in parents and ${condizione('mmf_type', 'archivio')}`, 'createdTime desc')
+        ).map((f) => ({ id: f.id, revisione: Number(f.appProperties?.mmf_rev) || 0 })),
     }
   }
 
@@ -159,12 +164,13 @@ export class Drive {
     return this.creaFile({ name: chiave, parents: [radice], mimeType: CARTELLA, appProperties: { mmf_type: 'folder', mmf_key: chiave } })
   }
 
-  private async cerca(q: string): Promise<FileDrive[]> {
+  private async cerca(q: string, ordine?: string): Promise<FileDrive[]> {
     const parametri = new URLSearchParams({
       q: `${q} and trashed=false`,
       fields: 'files(id,name,appProperties)',
       pageSize: '100',
       spaces: 'drive',
+      ...(ordine ? { orderBy: ordine } : {}),
     })
     const r = await this.json<{ files?: FileDrive[] }>(`${API}/files?${parametri}`)
     return r.files ?? []

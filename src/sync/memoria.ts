@@ -79,6 +79,10 @@ export class CloudInMemoria {
         rete()
         this.file.delete(fileId)
       },
+      elenca: async () => {
+        rete()
+        return [...this.file.keys()].map((id) => ({ id, revisione: Number(id.split('-')[1]) || 0 }))
+      },
     }
 
     const registro: Registro = {

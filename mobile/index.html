@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Colore dietro la barra di stato: lo stesso fondo dell'app, chiaro o scuro -->
+    <meta name="theme-color" content="#eef4f4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#050a0b" media="(prefers-color-scheme: dark)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!--
+      Installata sulla Home, l'app si estende anche dietro barra di stato e isola
+      dinamica: la testata di vetro ci scorre sotto e il suo contenuto parte
+      dopo env(safe-area-inset-top), che su iPhone 17 vale l'altezza dell'isola.
+    -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="MyMedicalFlow" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>MyMedicalFlow</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!--
+      Mai una pagina bianca: se l'app non parte, l'errore compare sullo schermo.
+      Script classico e senza sintassi moderna, così funziona anche quando il
+      resto non viene capito dal browser.
+    -->
+    <script>
+      (function () {
+        var errori = [];
+        function mostra() {
+          if (document.getElementById('errore-avvio')) {
+            document.getElementById('errore-avvio-testo').textContent = errori.join('\n\n');
+            return;
+          }
+          var box = document.createElement('div');
+          box.id = 'errore-avvio';
+          box.style.cssText = 'position:fixed;inset:0;z-index:9999;overflow:auto;padding:calc(24px + env(safe-area-inset-top)) 20px 24px;background:#fff;color:#111;font:14px/1.5 -apple-system,system-ui,sans-serif';
+          box.innerHTML = '<p style="font-weight:600;font-size:17px;margin:0 0 8px">MyMedicalFlow non è partita</p>' +
+            '<p style="margin:0 0 12px;color:#555">Copia o fotografa questo testo per la diagnosi.</p>' +
+            '<pre id="errore-avvio-testo" style="white-space:pre-wrap;word-break:break-word;background:#f3f4f6;padding:12px;border-radius:12px;font-size:12px"></pre>';
+          document.body.appendChild(box);
+          document.getElementById('errore-avvio-testo').textContent = errori.join('\n\n');
+        }
+        window.addEventListener('error', function (e) {
+          var t = e.target;
+          if (t && t !== window && (t.src || t.href)) errori.push('Risorsa non caricata: ' + (t.src || t.href));
+          else errori.push((e.message || 'Errore') + (e.filename ? '\n' + e.filename + ':' + e.lineno + ':' + e.colno : ''));
+          mostra();
+        }, true);
+        window.addEventListener('unhandledrejection', function (e) {
+          errori.push('Promessa rifiutata: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason));
+          mostra();
+        });
+        // Nessun errore ma niente a schermo dopo 8 secondi: diciamo almeno cosa c'è
+        setTimeout(function () {
+          var root = document.getElementById('root');
+          if (root && !root.firstChild) {
+            errori.push('Nessun contenuto dopo 8 secondi.\nContesto sicuro: ' + window.isSecureContext + '\nWebCrypto: ' + !!(window.crypto && window.crypto.subtle) + '\n' + navigator.userAgent);
+            mostra();
+          }
+        }, 8000);
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

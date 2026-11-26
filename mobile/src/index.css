@@ -1,0 +1,104 @@
+/* Stessa base grafica del desktop: tema, componenti e scrollbar. */
+@import '../../src/index.css';
+
+/*
+ * Materiale vetro, alla maniera di iOS: superfici traslucide e sfocate sopra
+ * uno sfondo con luci tenui nei colori dell'app. L'identità resta quella del
+ * desktop (teal, loghi, icone, etichette): cambia solo la materia.
+ */
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-press: 140ms;
+  --t-ui: 240ms;
+  /* Altezze delle barre di vetro, per il contenuto che ci scorre sotto.
+     In alto: la riga della testata più la zona di barra di stato e isola. */
+  --testata: calc(3.5rem + env(safe-area-inset-top));
+  /* In basso la barra delle schede si appoggia in parte sulla zona della linea
+     Home (34 pt su iPhone), come le app di sistema; mai a meno di 12 px dal bordo. */
+  --fondo-barra: max(0.75rem, calc(env(safe-area-inset-bottom) - 0.5rem));
+  --barra: calc(4.75rem + var(--fondo-barra));
+}
+
+@layer base {
+  /*
+   * Su iPhone `height: 100%` vale l'altezza "grande" (barre di Safari nascoste):
+   * il fondo finirebbe sotto il bordo visibile. `100dvh` segue l'area davvero
+   * visibile. Il documento resta fermo (fixed): Safari altrimenti lo fa
+   * rimbalzare anche con overflow hidden, trascinando testata e barra.
+   * Scorrono solo i contenitori interni.
+   */
+  html {
+    height: 100%;
+    overscroll-behavior: none;
+  }
+  body {
+    position: fixed;
+    inset: 0;
+    height: 100%;
+    height: 100dvh;
+  }
+  #root {
+    height: 100%;
+  }
+
+  body {
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif;
+    @apply bg-[#eef4f4] dark:bg-[#050a0b];
+  }
+
+  /* Riscontro alla pressione: breve, senza rimbalzo. */
+  button:not(:disabled),
+  a[href] {
+    transition: transform var(--t-press) var(--ease-out), background-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    button:not(:disabled):active,
+    a[href]:active {
+      transform: scale(0.97);
+    }
+    .card:is(button):active,
+    button.card:active {
+      transform: scale(0.985);
+    }
+  }
+}
+
+@layer components {
+  /* Area toccabile minima di 44 px, come richiesto dalle linee guida iOS e Android. */
+  .tocco {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  /* Materiale sottile: card e gruppi di contenuto. */
+  .vetro {
+    @apply bg-white/60 dark:bg-white/[0.06] backdrop-blur-xl backdrop-saturate-150 border border-white/70 dark:border-white/[0.08];
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.55), 0 10px 30px -18px rgb(13 70 70 / 0.35);
+  }
+  .dark .vetro {
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 10px 30px -18px rgb(0 0 0 / 0.7);
+  }
+
+  /* Materiale spesso: barre, pannelli e fogli che galleggiano sul contenuto. */
+  .vetro-spesso {
+    @apply bg-white/70 dark:bg-[#0c1415]/70 backdrop-blur-2xl backdrop-saturate-[1.8] border-white/70 dark:border-white/[0.08];
+  }
+
+  /* Le card del desktop diventano vetro sottile, con raggio continuo da iOS. */
+  .card {
+    @apply vetro rounded-[22px];
+  }
+  .dark .card {
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 10px 30px -18px rgb(0 0 0 / 0.7);
+  }
+
+  .input-field {
+    @apply bg-white/75 dark:bg-white/[0.06] border-white/80 dark:border-white/10 rounded-[14px] min-h-[44px];
+    box-shadow: inset 0 0 0 1px rgb(15 118 110 / 0.08);
+  }
+
+  .btn-secondary {
+    @apply bg-white/70 dark:bg-white/[0.08] border-white/80 dark:border-white/10 backdrop-blur-xl;
+  }
+}

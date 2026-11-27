@@ -90,6 +90,15 @@ jobs:
           # non genera latest.json né i file .sig
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Accesso Google e Firebase (abbonamento e sincronizzazione): senza,
+          # la build si ferma (vite.config.ts e src-tauri/build.rs). I valori
+          # sono i secrets del repository, gli stessi di .env.local.
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_GOOGLE_CLIENT_ID_DESKTOP: ${{ secrets.VITE_GOOGLE_CLIENT_ID_DESKTOP }}
+          GOOGLE_CLIENT_SECRET_DESKTOP: ${{ secrets.GOOGLE_CLIENT_SECRET_DESKTOP }}
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
           releaseName: 'MyMedicalFlow __VERSION__'

@@ -1,0 +1,53 @@
+rules_version = '2';
+
+// Regole di sicurezza di Firestore per MyMedicalFlow (CR §4.2).
+// Su Firestore ci sono solo il puntatore all'archivio cifrato su Drive e le
+// licenze: nessun dato di pazienti o fatture.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function licenza() {
+      return /databases/$(database)/documents/licenze/$(request.auth.token.email);
+    }
+
+    // Login Google con email verificata e licenza attiva e non scaduta. Il
+    // controllo avviene qui, sul server di Google, non solo nell'app.
+    function licenzaAttiva() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && exists(licenza())
+        && get(licenza()).data.attiva == true
+        && (!('scadenza' in get(licenza()).data) || get(licenza()).data.scadenza > request.time);
+    }
+
+    function puntatoreValido(p) {
+      return p.keys().hasOnly(['revisione', 'fileId', 'dispositivo', 'aggiornatoIl'])
+        && p.keys().hasAll(['revisione', 'fileId', 'dispositivo', 'aggiornatoIl'])
+        && p.revisione is int
+        && p.fileId is string && p.fileId.size() > 0 && p.fileId.size() <= 200
+        && p.dispositivo is string && p.dispositivo.size() <= 100
+        && p.aggiornatoIl is string && p.aggiornatoIl.size() <= 40;
+    }
+
+    // Ognuno vede solo il proprio documento. La revisione avanza di uno alla
+    // volta: nessun client può tornare indietro o saltare avanti.
+    match /archivi/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid && licenzaAttiva();
+      allow create: if request.auth != null && request.auth.uid == uid && licenzaAttiva()
+        && request.resource.data.keys().hasOnly(['puntatore'])
+        && puntatoreValido(request.resource.data.puntatore)
+        && request.resource.data.puntatore.revisione == 1;
+      allow update: if request.auth != null && request.auth.uid == uid && licenzaAttiva()
+        && request.resource.data.keys().hasOnly(['puntatore'])
+        && puntatoreValido(request.resource.data.puntatore)
+        && request.resource.data.puntatore.revisione == resource.data.puntatore.revisione + 1;
+      allow delete: if false;
+    }
+
+    // Ognuno legge solo la propria licenza; le gestisce il titolare dalla console.
+    match /licenze/{email} {
+      allow read: if request.auth != null && request.auth.token.email == email;
+      allow write: if false;
+    }
+  }
+}

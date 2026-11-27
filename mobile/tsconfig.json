@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@desktop/*": ["../src/*"],
+      "@icons/*": ["../src-tauri/icons/*"]
+    }
+  },
+  "include": ["src", "../src/vite-env.d.ts"]
+}

@@ -388,8 +388,8 @@ export function CopieCard({ onFeedback }: CopieCardProps) {
             </h4>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-            Serve solo per rileggere le copie su un altro computer, ad esempio dopo un
-            guasto. Conservalo fuori da questo PC.
+            Serve per rileggere le copie su un altro computer, ad esempio dopo un
+            guasto o connettere l'app mobile con i dati presenti sul tuo pc. Conservalo con cura e possibilmente fuori da questo PC.
           </p>
 
           {codiceVisibile && codice ? (

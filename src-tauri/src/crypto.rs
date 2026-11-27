@@ -226,4 +226,27 @@ mod tests {
         assert_eq!(decifra(&a, &chiave).unwrap(), decifra(&b, &chiave).unwrap());
     }
 
+    /// Archivio cifrato dalla WebCrypto dell'app mobile (`src/sync/cifratura.ts`):
+    /// il desktop deve saperlo leggere. Il test gemello in TypeScript legge un
+    /// file prodotto da `cifra` qui sopra.
+    #[test]
+    fn legge_un_archivio_cifrato_dalla_webcrypto() {
+        let chiave: [u8; CHIAVE_LEN] = core::array::from_fn(|i| i as u8);
+        assert_eq!(
+            chiave_in_codice(&chiave),
+            "AAAT-EA2E-AYDA-RCAK-BJFT-2DJR-B6JB-CETX-CTMV-PF22-DEQB-0HA7-D2ST"
+        );
+
+        let esadecimale = "4d4d463201ad2b72b0b396d9e531de446df998570a0661981d968cb103decf7d7bf999e4df4f28d84ec252f742be5e19df21d0d144dc075da6d25b7f7d1884234dc08755fbb5a92880c9ea73ff185baa1b7a8a";
+        let raw: Vec<u8> = (0..esadecimale.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&esadecimale[i..i + 2], 16).unwrap())
+            .collect();
+
+        let chiaro = decifra(&raw, &chiave).unwrap();
+        assert_eq!(
+            String::from_utf8(chiaro).unwrap(),
+            r#"{"pazienti":"[]","profilo":"{\"nome\":\"Prova\"}"}"#
+        );
+    }
 }

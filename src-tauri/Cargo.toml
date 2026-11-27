@@ -36,6 +36,8 @@ quick-xml = "0.41.0"
 reqwest = { version = "0.13.4", default-features = false, features = ["blocking", "rustls", "charset"] }
 rand = "0.8"
 keyring = "4.1.6"
+# PKCE dell'accesso Google (src/google.rs)
+sha2 = "0.10"
 
 # DPAPI per la cifratura dell'archivio locale (vedi src/secure_store.rs)
 [target.'cfg(windows)'.dependencies]

@@ -120,6 +120,14 @@ export function FattureTable({
               >
                 <td className="px-3 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">
                   {inv.invoiceNumber}
+                  {inv.bozza && (
+                    <span
+                      className="ml-2 rounded-md bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400"
+                      title="Numero provvisorio: diventa definitivo al ritorno della rete"
+                    >
+                      Bozza
+                    </span>
+                  )}
                 </td>
                 <td className="px-3 py-3 font-mono text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
                   {inv.invoiceType === 'elettronica'

@@ -5,6 +5,7 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use tauri::Manager;
 
 mod crypto;
+mod google;
 mod secure_store;
 pub mod sistema_ts;
 
@@ -40,12 +41,14 @@ fn sanitize_file_name(raw: &str) -> String {
 }
 
 /// Salva il file .docx nella cartella specificata (o Desktop come fallback) e lo apre
-/// con l'applicazione predefinita (Word, LibreOffice, ecc.).
+/// con l'applicazione predefinita (Word, LibreOffice, ecc.). Con `open: false` lo
+/// salva soltanto: per i Word rigenerati da soli quando una bozza viene numerata.
 #[tauri::command]
 fn save_and_open_docx(
     file_name: String,
     base64_content: String,
     save_dir: Option<String>,
+    open: Option<bool>,
 ) -> Result<String, String> {
     let bytes = STANDARD
         .decode(base64_content.trim())
@@ -69,6 +72,10 @@ fn save_and_open_docx(
     let path = dest_dir.join(sanitize_file_name(&file_name));
 
     std::fs::write(&path, &bytes).map_err(|e| format!("Errore scrittura file: {e}"))?;
+
+    if open == Some(false) {
+        return Ok(path.to_string_lossy().into_owned());
+    }
 
     // `that_detached` passa il percorso come parametro (ShellExecuteW su Windows,
     // `open`/`xdg-open` altrove) e non lo fa mai interpretare da una shell.
@@ -102,6 +109,16 @@ fn secure_store_load(app: tauri::AppHandle) -> Result<Option<String>, String> {
 #[tauri::command]
 fn secure_store_save(app: tauri::AppHandle, data: String) -> Result<(), String> {
     secure_store::save(&app, &data)
+}
+
+#[tauri::command]
+fn sync_base_load(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    secure_store::base_sync_load(&app)
+}
+
+#[tauri::command]
+fn sync_base_save(app: tauri::AppHandle, data: Option<String>) -> Result<(), String> {
+    secure_store::base_sync_save(&app, data.as_deref())
 }
 
 // ─── Codice di recupero ───────────────────────────────────────────────────────
@@ -213,6 +230,8 @@ pub fn run() {
             save_text_file,
             secure_store_load,
             secure_store_save,
+            sync_base_load,
+            sync_base_save,
             codice_recupero,
             chiave_stato,
             chiave_recupera_da_codice,
@@ -223,6 +242,10 @@ pub fn run() {
             imposta_cartella_backup,
             segna_copie_configurate,
             destinazioni_suggerite,
+            google::google_accedi,
+            google::google_token,
+            google::google_collegato,
+            google::google_esci,
             sistema_ts::commands::sistema_ts_configurazione,
             sistema_ts::commands::sistema_ts_trasmetti,
             sistema_ts::commands::sistema_ts_credenziali_stato,

@@ -185,6 +185,7 @@ export async function downloadDocx(
   base64Content: string,
   fileName: string,
   saveDir?: string,
+  opzioni: { apri?: boolean } = {},
 ): Promise<void> {
   if (isTauri()) {
     try {
@@ -193,6 +194,7 @@ export async function downloadDocx(
         fileName,
         base64Content,
         saveDir: saveDir ?? null,
+        open: opzioni.apri ?? true,
       })
       return
     } catch (e) {

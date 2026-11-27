@@ -18,7 +18,12 @@ import { inizializzaStorage } from '../lib/storageService'
 import { leggiPreferenze } from '../lib/backupService'
 import { chiaveStato } from '../lib/chiaveService'
 import { useAggiornamentoStore } from '../stores/aggiornamentoStore'
+import { avviaSincronizzazione, leggiLicenza } from '../lib/cloudService'
+import { leggiVerifica, motivoBlocco, salvaVerifica, valutaVerifica } from '../lib/abbonamentoService'
+import { VerificaAbbonamento } from '../components/layout/VerificaAbbonamento'
 import type { StatoAvvio } from '../types'
+
+const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 import type { NavRoute } from '../components/layout/Sidebar'
 
 const DURATA_SPLASH_MS = 900
@@ -32,6 +37,8 @@ export default function App() {
   const [activeRoute, setActiveRoute] = useState<NavRoute>('dashboard')
   // Incrementato dopo un recupero riuscito per far ripartire l'avvio da zero.
   const [tentativo, setTentativo] = useState(0)
+  // Perché si chiede la verifica dell'abbonamento, se non è quella periodica
+  const [motivoAbbonamento, setMotivoAbbonamento] = useState<string | null>(null)
 
   const { caricaProfilo, isProfiloCompleto } = useProfiloStore()
   const { caricaImpostazioni, applicaTema } = useImpostazioniStore()
@@ -69,6 +76,20 @@ export default function App() {
       // Tema letto dopo il caricamento, non dal valore iniziale dello store
       applicaTema(useImpostazioniStore.getState().impostazioni.tema)
 
+      // Abbonamento (CR §7.2): accesso Google ogni 30 giorni, prima di tutto il resto
+      if (isTauri()) {
+        const esito = valutaVerifica(leggiVerifica(), Date.now())
+        if (esito.tipo !== 'valida') {
+          setMotivoAbbonamento(
+            esito.tipo === 'scaduta'
+              ? `L'abbonamento è scaduto il ${new Date(esito.scadenza).toLocaleDateString('it-IT')}: accedi per controllare il rinnovo.`
+              : null,
+          )
+          setStato('abbonamento')
+          return
+        }
+      }
+
       const configurate = await leggiPreferenze()
         .then((p) => p.copieConfigurate)
         .catch(() => true)
@@ -101,6 +122,33 @@ export default function App() {
     void controllaAggiornamenti()
   }, [stato, controllaAggiornamenti])
 
+  // Sincronizzazione con Drive (CR §5), se configurata: anche lei ad app pronta
+  // e senza bloccare nulla. Senza rete le modifiche restano qui e partono dopo.
+  useEffect(() => {
+    if (stato !== 'ready' || !isTauri()) return
+    void avviaSincronizzazione()
+  }, [stato])
+
+  // Dentro i 30 giorni, con la rete: la licenza si ricontrolla in silenzio.
+  // Se è stata revocata o è scaduta l'app si ferma; senza rete o senza
+  // sessione resta valida la verifica salvata.
+  useEffect(() => {
+    if (stato !== 'ready' || !isTauri()) return
+    leggiLicenza()
+      .then((licenza) => {
+        const blocco = motivoBlocco(licenza, Date.now())
+        const salvata = leggiVerifica()
+        if (blocco) {
+          salvaVerifica(null)
+          setMotivoAbbonamento(blocco)
+          setStato('abbonamento')
+        } else if (salvata && salvata.scadenza !== licenza.scadenza) {
+          salvaVerifica({ ...salvata, scadenza: licenza.scadenza })
+        }
+      })
+      .catch(() => {})
+  }, [stato])
+
   // Quando il profilo viene completato dalla SetupPage si prosegue con la
   // configurazione delle copie, se non è ancora stata fatta.
   useEffect(() => {
@@ -123,6 +171,19 @@ export default function App() {
     return (
       <RecuperoChiave
         onRecuperato={() => {
+          setStato('loading')
+          setTentativo((t) => t + 1)
+        }}
+      />
+    )
+  }
+
+  if (stato === 'abbonamento') {
+    return (
+      <VerificaAbbonamento
+        motivo={motivoAbbonamento}
+        onVerificato={() => {
+          setMotivoAbbonamento(null)
           setStato('loading')
           setTentativo((t) => t + 1)
         }}

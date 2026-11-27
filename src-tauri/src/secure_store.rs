@@ -24,7 +24,7 @@ const PREFISSO_BACKUP: &str = "mymedicalflow-";
 const ESTENSIONE_BACKUP: &str = "mmfbak";
 
 /// Copie conservate per ciascuna destinazione.
-const MAX_BACKUP: usize = 10;
+const MAX_BACKUP: usize = 5;
 
 // ─── Percorsi ─────────────────────────────────────────────────────────────────
 
@@ -358,6 +358,35 @@ pub fn save(app: &tauri::AppHandle, data: &str) -> Result<(), String> {
     scrivi_atomico(&percorso_archivio(app)?, &cifrato)
 }
 
+// ─── Base della sincronizzazione ──────────────────────────────────────────────
+
+/// Ultima versione dell'archivio allineata con il cloud (CR §5.1), con la sua
+/// revisione: serve alla fusione a tre vie dopo un periodo offline o ad app
+/// chiusa. Cifrata con la stessa chiave dell'archivio, accanto a lui.
+const FILE_BASE_SYNC: &str = "sync-base.dat";
+
+pub fn base_sync_load(app: &tauri::AppHandle) -> Result<Option<String>, String> {
+    let percorso = cartella_dati(app)?.join(FILE_BASE_SYNC);
+    if !percorso.exists() {
+        return Ok(None);
+    }
+    let raw = std::fs::read(&percorso).map_err(|e| format!("lettura base sincronizzazione: {e}"))?;
+    let chiaro = crypto::decifra(&raw, &chiave(app)?)?;
+    String::from_utf8(chiaro)
+        .map(Some)
+        .map_err(|e| format!("base sincronizzazione non leggibile: {e}"))
+}
+
+/// `None` la cancella (sincronizzazione disattivata).
+pub fn base_sync_save(app: &tauri::AppHandle, data: Option<&str>) -> Result<(), String> {
+    let percorso = cartella_dati(app)?.join(FILE_BASE_SYNC);
+    match data {
+        Some(d) => scrivi_atomico(&percorso, &crypto::cifra(d.as_bytes(), &chiave(app)?)?),
+        None if percorso.exists() => std::fs::remove_file(&percorso).map_err(|e| e.to_string()),
+        None => Ok(()),
+    }
+}
+
 // ─── Copie di sicurezza ───────────────────────────────────────────────────────
 
 #[derive(serde::Serialize)]
@@ -612,6 +641,27 @@ mod legacy {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn la_rotazione_tiene_le_5_copie_piu_recenti_e_cancella_le_altre() {
+        let dir = std::env::temp_dir().join(format!("mmf-rotazione-{}", epoch_ms()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let base = 1_786_219_300_000_u64;
+        for i in 0..8 {
+            std::fs::write(dir.join(nome_backup(base + i * 60_000)), b"copia").unwrap();
+        }
+        // Un file estraneo nella stessa cartella non va toccato
+        std::fs::write(dir.join("appunti.txt"), b"mio").unwrap();
+
+        ruota(&dir);
+
+        let mut rimaste: Vec<u64> = elenca_in(&dir, false).iter().map(|b| b.creato_il).collect();
+        rimaste.sort();
+        let attese: Vec<u64> = (3..8).map(|i| base + i * 60_000).collect();
+        assert_eq!(rimaste, attese);
+        assert!(dir.join("appunti.txt").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn il_nome_del_backup_conserva_l_istante() {

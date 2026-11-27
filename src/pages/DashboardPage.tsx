@@ -5,6 +5,7 @@ import { pazienteService } from '../lib/pazienteService'
 import { fatturaService } from '../lib/fatturaService'
 import { appuntamentoService } from '../lib/appuntamentoService'
 import { IndicatoreCopie } from '../features/backup/IndicatoreCopie'
+import { IndicatoreSincronizzazione } from '../features/sincronizzazione/IndicatoreSincronizzazione'
 import { salutoPerSesso } from '../types'
 import { Users, Calendar, FileText } from 'lucide-react'
 import { iconaWhite, iconaBlue, logoBianco, logoBlu } from '../assets/logos'
@@ -67,7 +68,8 @@ export function DashboardPage() {
           )}
         </div>
 
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex items-center gap-2">
+          <IndicatoreSincronizzazione />
           <IndicatoreCopie />
         </div>
       </div>
@@ -106,13 +108,14 @@ export function DashboardPage() {
               MyMedicalFlow
             </h3>
             <p className="text-gray-600 dark:text-gray-300 text-sm mt-1 max-w-lg">
-              Il tuo gestionale medico desktop offline. Tutti i dati vengono salvati
-              esclusivamente sul tuo dispositivo, senza connessione internet.
+              Il tuo gestionale medico desktop offline o con app mobile. Tutti i dati vengono salvati
+              esclusivamente sul tuo dispositivo o nel caso del app mobile sul tuo Google Drive (cifrati).
             </p>
             <div className="flex flex-wrap gap-2 mt-3">
               <Badge>Pazienti</Badge>
               <Badge>Appuntamenti</Badge>
               <Badge>Fatture</Badge>
+              <Badge>Emissione al Sistema Tessera Sanitario</Badge>
             </div>
           </div>
         </div>

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Informativa privacy · MyMedicalFlow</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; font: 16px/1.65 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #eef4f4; color: #111827; }
+  main { max-width: 46rem; margin: 0 auto; padding: 3rem 1.25rem 4rem; }
+  h1 { font-size: 1.75rem; line-height: 1.25; margin: 0 0 .25rem; }
+  h2 { font-size: 1.15rem; margin: 2.25rem 0 .5rem; }
+  p, li { color: #374151; }
+  a { color: #0f766e; }
+  .data { color: #6b7280; font-size: .9rem; margin: 0 0 2rem; }
+  .da-completare { background: #fef3c7; padding: 0 .25rem; border-radius: .25rem; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #050a0b; color: #f9fafb; }
+    p, li { color: #d1d5db; }
+    a { color: #5eead4; }
+    .da-completare { background: #78350f; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Informativa privacy di MyMedicalFlow</h1>
+  <p class="data">Ultimo aggiornamento: 27 novembre 2026</p>
+
+  <p>
+    MyMedicalFlow è un gestionale per professionisti sanitari composto da un'applicazione per computer (desktop) e da
+    un'applicazione web per il telefono. Questa informativa spiega quali dati tratta, come li protegge e quali diritti hai.
+  </p>
+  <p>
+    MyMedicalFlow non è un'applicazione commerciale: è un progetto sviluppato esclusivamente a scopo di studio personale.
+  </p>
+
+  <h2>Chi è il titolare</h2>
+  <p>
+    Per i dati del tuo account (indirizzo email e licenza d'uso) il titolare del trattamento è
+    Matteo Vivanet, contattabile all'indirizzo
+    <a href="mailto:aziendatestvivanet@gmail.com">aziendatestvivanet@gmail.com</a>.
+  </p>
+  <p>
+    Per i dati dei tuoi pazienti il titolare sei tu, in quanto professionista. MyMedicalFlow li conserva cifrati e non vi ha
+    accesso: lo sviluppatore non può leggerli in nessun momento.
+  </p>
+
+  <h2>I dati dei pazienti</h2>
+  <ul>
+    <li>Sul computer i dati sono salvati in un archivio cifrato, protetto dal sistema operativo.</li>
+    <li>
+      Se attivi la sincronizzazione con il telefono, l'archivio viene cifrato sul tuo dispositivo (AES-256-GCM) con una chiave
+      ricavata dal tuo codice di recupero, e solo dopo viene salvato sul <strong>tuo</strong> Google Drive. Il codice di
+      recupero lo conosci solo tu: né Google né lo sviluppatore possono decifrare l'archivio.
+    </li>
+    <li>
+      Sul telefono i dati dei pazienti restano solo in memoria mentre l'app è aperta e non vengono salvati sul dispositivo.
+      Sul telefono restano soltanto le preferenze (tema, blocco con Face ID), identificativi tecnici e la chiave di cifratura,
+      custodita dal browser in modo che non possa essere estratta.
+    </li>
+    <li>
+      L'invio delle spese al Sistema Tessera Sanitaria avviene dal computer direttamente verso i servizi del Ministero, con
+      le credenziali conservate nel portachiavi del sistema operativo.
+    </li>
+  </ul>
+
+  <h2>Dati del tuo account Google</h2>
+  <p>Quando accedi con Google, MyMedicalFlow chiede questi permessi:</p>
+  <ul>
+    <li><strong>Email e profilo di base</strong> (openid, email, profile): per identificarti e verificare la licenza d'uso.</li>
+    <li>
+      <strong>File di Google Drive creati dall'app</strong> (drive.file): per salvare l'archivio cifrato, le sue copie e il
+      modello Word delle fatture nella cartella «MyMedicalFlow». L'app non vede né modifica nessun altro file del tuo Drive.
+    </li>
+  </ul>
+  <p>
+    L'uso e il trasferimento ad altre applicazioni delle informazioni ricevute dalle API di Google rispettano le
+    <a href="https://developers.google.com/terms/api-services-user-data-policy">Norme sui dati utente dei servizi API di Google</a>,
+    inclusi i requisiti di utilizzo limitato (Limited Use). I dati ricevuti da Google non sono usati per pubblicità, non
+    vengono venduti e non sono usati per addestrare modelli di intelligenza artificiale.
+  </p>
+
+  <h2>Servizi usati</h2>
+  <ul>
+    <li>
+      <strong>Google Firebase</strong> (Authentication e Firestore, con i dati a Milano, regione europe-west8):
+      accesso con Google e un piccolo documento per account con il riferimento all'ultima versione dell'archivio (numero di
+      revisione, identificativo del file su Drive, identificativo casuale del dispositivo, data). Lì è conservata anche la
+      licenza d'uso (email, stato, scadenza). Non contiene dati di pazienti o fatture.
+    </li>
+    <li><strong>Google Drive</strong> del professionista: l'archivio cifrato e il modello Word delle fatture.</li>
+    <li>
+      <strong>Vercel</strong>: ospita i file dell'applicazione web. Come ogni servizio web può registrare dati tecnici delle
+      richieste (per esempio l'indirizzo IP) per motivi di sicurezza.
+    </li>
+  </ul>
+  <p>L'app non usa strumenti di statistica, pubblicità o profilazione.</p>
+
+  <h2>Per quanto tempo</h2>
+  <p>
+    Su Google Drive restano l'archivio attuale e le 4 versioni precedenti; quelle più vecchie vengono eliminate
+    definitivamente. I dati dell'account restano finché la licenza è attiva e vengono cancellati su richiesta.
+  </p>
+
+  <h2>I tuoi diritti</h2>
+  <p>
+    Puoi chiedere accesso, rettifica, cancellazione, limitazione e portabilità dei tuoi dati e opporti al trattamento
+    (articoli 15–22 del Regolamento UE 2016/679) scrivendo a <a href="mailto:aziendatestvivanet@gmail.com">aziendatestvivanet@gmail.com</a>. Puoi
+    revocare in qualsiasi momento l'accesso dell'app al tuo account dalla pagina
+    <a href="https://myaccount.google.com/permissions">Permessi di terze parti</a> di Google. Hai anche il diritto di proporre
+    reclamo al <a href="https://www.garanteprivacy.it">Garante per la protezione dei dati personali</a>.
+  </p>
+</main>
+</body>
+</html>

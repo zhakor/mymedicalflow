@@ -16,7 +16,7 @@ import { ModuloPaziente } from './schermate/ModuloPaziente'
 import { ModuloAppuntamento } from './schermate/ModuloAppuntamento'
 import { ModuloFattura } from './schermate/ModuloFattura'
 import { Avvio, Errore, Offline } from './schermate/Avvisi'
-import { Accesso, CodiceRecupero, LicenzaNonAttiva, SenzaArchivio } from './schermate/Accesso'
+import { Accesso, AppBloccata, CodiceRecupero, LicenzaNonAttiva, ProponiBlocco, SenzaArchivio } from './schermate/Accesso'
 import { Sfondo, UI, USCITA } from './componenti/Movimento'
 
 /** `--mode google`: Drive e Firestore veri dopo l'accesso; altrimenti simulati in memoria. */
@@ -129,6 +129,10 @@ function PrimaDeiDati({ fase, errore }: { fase: Exclude<FaseApp, 'pronta'>; erro
       return <SenzaArchivio />
     case 'codice':
       return <CodiceRecupero />
+    case 'bloccata':
+      return <AppBloccata />
+    case 'proponi-blocco':
+      return <ProponiBlocco />
     case 'errore':
       return <Errore messaggio={errore} />
   }

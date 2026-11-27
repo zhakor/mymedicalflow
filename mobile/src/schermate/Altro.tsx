@@ -1,9 +1,9 @@
-import { useState } from 'react'
-import { Moon, Sun, MonitorSmartphone, Cloud } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Moon, Sun, MonitorSmartphone, Cloud, ScanFace } from 'lucide-react'
 import { Button } from '@desktop/components/ui/Button'
 import { profiloService } from '@desktop/lib/profiloService'
 import { useDati } from '../dati/hooks'
-import { useSincronizzazione } from '../dati/sincronizzazione'
+import { impostaBlocco, statoBlocco, useSincronizzazione } from '../dati/sincronizzazione'
 import { VERSIONE } from '../versione'
 import { cambiaTema, temaScuro } from '../tema'
 
@@ -60,6 +60,7 @@ export function Altro() {
             <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${scuro ? 'left-[22px]' : 'left-0.5'}`} />
           </span>
         </button>
+        <BloccoFaceId />
       </section>
 
       <section className="card p-4 space-y-1">
@@ -95,3 +96,33 @@ export function Altro() {
     </div>
   )
 }
+
+/** Interruttore del blocco con Face ID, se il telefono lo permette (account Google, non con i dati di prova). */
+function BloccoFaceId() {
+  const [stato, setStato] = useState<{ disponibile: boolean; attivo: boolean } | null>(null)
+  const [errore, setErrore] = useState<string | null>(null)
+  useEffect(() => {
+    statoBlocco().then(setStato, () => setStato(null))
+  }, [])
+  if (!stato?.disponibile) return null
+
+  const cambia = () => {
+    setErrore(null)
+    impostaBlocco(!stato.attivo)
+      .then(() => setStato({ ...stato, attivo: !stato.attivo }))
+      .catch(() => setErrore('Attivazione non riuscita: riprova.'))
+  }
+  return (
+    <>
+      <button onClick={cambia} className="w-full tocco flex items-center gap-3 px-4 py-3 text-left border-t border-gray-200/60 dark:border-white/[0.06]">
+        <ScanFace size={20} className="text-teal-600" />
+        <span className="flex-1 text-gray-900 dark:text-white">Blocco con Face ID</span>
+        <span className={`relative h-6 w-11 rounded-full transition-colors ${stato.attivo ? 'bg-teal-600' : 'bg-gray-300'}`} aria-hidden>
+          <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${stato.attivo ? 'left-[22px]' : 'left-0.5'}`} />
+        </span>
+      </button>
+      {errore && <p className="px-4 pb-3 text-sm text-red-600 dark:text-red-400">{errore}</p>}
+    </>
+  )
+}
+

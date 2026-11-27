@@ -30,6 +30,7 @@ import { avvisa } from '../navigazione'
 import { archivioDemo } from './demo'
 import { sessioneRipresa, type Sessione } from './google'
 import { chiaveSalvata, dimenticaChiave, salvaChiave } from './chiave'
+import { attivaBlocco, bloccoAttivo, bloccoDisponibile, disattivaBlocco, sblocca } from './blocco'
 
 /** Codice di recupero della modalità simulata (chiave 0..31): mai usato con dati reali. */
 const CODICE_PROVA = 'AAAT-EA2E-AYDA-RCAK-BJFT-2DJR-B6JB-CETX-CTMV-PF22-DEQB-0HA7-D2ST'
@@ -42,7 +43,18 @@ export type StatoSync = 'allineato' | 'in-corso' | 'offline' | 'errore'
  * una licenza attiva, `senza-archivio` il PC non ha ancora configurato Drive,
  * `codice` l'archivio c'è e serve il codice di recupero.
  */
-export type FaseApp = 'avvio' | 'accesso' | 'licenza' | 'senza-archivio' | 'codice' | 'pronta' | 'errore'
+export type FaseApp =
+  | 'avvio'
+  | 'accesso'
+  | 'licenza'
+  | 'senza-archivio'
+  | 'codice'
+  /** Blocco con Face ID attivo: serve il riconoscimento prima dei dati. */
+  | 'bloccata'
+  /** Primo accesso riuscito: si propone di attivare il blocco con Face ID. */
+  | 'proponi-blocco'
+  | 'pronta'
+  | 'errore'
 
 interface StatoSincronizzazione {
   app: FaseApp
@@ -300,6 +312,66 @@ export function avviaModalitaGoogle(sessione?: Sessione): Promise<void> {
   return avvioGoogle
 }
 
+// ─── Blocco con Face ID ───────────────────────────────────────────────────────
+
+/** Dopo quanto tempo in secondo piano si chiede di nuovo Face ID. */
+const BLOCCO_DOPO_MS = 5 * 60_000
+
+let ultimaSessione: Sessione | null = null
+/** Sbloccata in questa apertura dell'app. */
+let sbloccata = false
+let nascostaDal: number | null = null
+
+/** Un tocco su «Sblocca»: Face ID (o il codice del telefono), poi i dati. */
+export async function sbloccaApp(): Promise<void> {
+  if (!ultimaSessione) return
+  await sblocca(ultimaSessione.uid)
+  sbloccata = true
+  // Bloccata ad app già aperta (ritorno dal secondo piano): i dati sono in memoria
+  if (motoreTelefono) {
+    imposta({ app: 'pronta' })
+    motoreTelefono.sincronizza({ fresco: true }).catch(registraErrore)
+  } else {
+    await avviaModalitaGoogle(ultimaSessione)
+  }
+}
+
+export async function statoBlocco(): Promise<{ disponibile: boolean; attivo: boolean }> {
+  const uid = ultimaSessione?.uid
+  return { disponibile: !!uid && (await bloccoDisponibile()), attivo: !!uid && bloccoAttivo(uid) }
+}
+
+/** Dal tocco di un pulsante (Safari lo richiede). */
+export async function impostaBlocco(attivo: boolean): Promise<void> {
+  if (!ultimaSessione) return
+  if (attivo) {
+    await attivaBlocco(ultimaSessione.uid, ultimaSessione.email)
+    sbloccata = true
+  } else {
+    disattivaBlocco(ultimaSessione.uid)
+  }
+}
+
+/** Dopo il primo accesso: il blocco proposto è stato attivato o rimandato. */
+export function chiudiPropostaBlocco(): void {
+  imposta({ app: 'pronta' })
+}
+
+// Tornando dopo più di 5 minuti in secondo piano, il blocco si richiude
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    nascostaDal = Date.now()
+    return
+  }
+  const uid = ultimaSessione?.uid
+  const assente = nascostaDal === null ? 0 : Date.now() - nascostaDal
+  nascostaDal = null
+  if (uid && bloccoAttivo(uid) && assente > BLOCCO_DOPO_MS && useSincronizzazione.getState().app === 'pronta') {
+    sbloccata = false
+    imposta({ app: 'bloccata' })
+  }
+})
+
 /** L'archivio trovato su Drive, in attesa del codice di recupero. */
 let archivioTrovato: { sessione: Sessione; cloud: { deposito: DepositoFile; registro: Registro; modello: DepositoModello } } | null = null
 
@@ -309,6 +381,11 @@ async function avvioConGoogle(sessione?: Sessione): Promise<void> {
     const s = sessione ?? (await sessioneRipresa())
     if (!s) {
       imposta({ app: 'accesso' })
+      return
+    }
+    ultimaSessione = s
+    if (bloccoAttivo(s.uid) && !sbloccata) {
+      imposta({ app: 'bloccata', email: s.email })
       return
     }
 
@@ -460,4 +537,7 @@ export async function apriConCodice(codice: string): Promise<void> {
     return
   }
   await salvaChiave(archivioTrovato.sessione.uid, chiave)
+  // Primo accesso su questo telefono: si propone di proteggerlo con Face ID
+  const uid = archivioTrovato.sessione.uid
+  if (!bloccoAttivo(uid) && (await bloccoDisponibile())) imposta({ app: 'proponi-blocco' })
 }

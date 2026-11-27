@@ -4,11 +4,11 @@
  */
 
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { KeyRound, LogOut, Monitor, ShieldX } from 'lucide-react'
+import { KeyRound, LogOut, Monitor, ScanFace, ShieldX } from 'lucide-react'
 import { logoBianco, logoBlu } from '@desktop/assets/logos'
 import { Centrato } from './Avvisi'
 import { AccessoAnnullato, accedi, esci, preparaAccesso, ultimaEmail } from '../dati/google'
-import { apriConCodice, avviaModalitaGoogle, useSincronizzazione } from '../dati/sincronizzazione'
+import { apriConCodice, avviaModalitaGoogle, chiudiPropostaBlocco, impostaBlocco, sbloccaApp, useSincronizzazione } from '../dati/sincronizzazione'
 
 type Libreria = Awaited<ReturnType<typeof preparaAccesso>>
 
@@ -180,3 +180,83 @@ export function CodiceRecupero() {
     </Bloccato>
   )
 }
+
+const messaggioBlocco = (err: unknown) =>
+  err instanceof DOMException && err.name === 'NotAllowedError'
+    ? 'Riconoscimento annullato o non riuscito: riprova.'
+    : err instanceof Error
+      ? err.message
+      : String(err)
+
+/** Blocco con Face ID attivo: i dati si mostrano solo dopo il riconoscimento. */
+export function AppBloccata() {
+  const [inCorso, setInCorso] = useState(false)
+  const [errore, setErrore] = useState<string | null>(null)
+  const tocca = () => {
+    setErrore(null)
+    setInCorso(true)
+    sbloccaApp()
+      .catch((err) => setErrore(messaggioBlocco(err)))
+      .finally(() => setInCorso(false))
+  }
+  return (
+    <Bloccato icona={<ScanFace size={30} />} titolo="MyMedicalFlow è bloccata">
+      <p>Per vedere i dati dei pazienti conferma che sei tu, con Face ID o il codice del telefono.</p>
+      <button
+        onClick={tocca}
+        disabled={inCorso}
+        className="tocco mt-3 w-full rounded-xl bg-teal-600 px-5 py-3 font-medium text-white active:bg-teal-700 disabled:opacity-50"
+      >
+        {inCorso ? 'Riconoscimento…' : 'Sblocca'}
+      </button>
+      {errore && (
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          {errore}
+        </p>
+      )}
+    </Bloccato>
+  )
+}
+
+/** Dopo il primo accesso: proteggere il telefono con Face ID. */
+export function ProponiBlocco() {
+  const [inCorso, setInCorso] = useState(false)
+  const [errore, setErrore] = useState<string | null>(null)
+  const attiva = () => {
+    setErrore(null)
+    setInCorso(true)
+    impostaBlocco(true)
+      .then(chiudiPropostaBlocco)
+      .catch((err) => setErrore(messaggioBlocco(err)))
+      .finally(() => setInCorso(false))
+  }
+  return (
+    <Centrato>
+      <span className="h-16 w-16 rounded-full bg-teal-100 dark:bg-teal-900/30 text-teal-600 flex items-center justify-center mb-4">
+        <ScanFace size={30} />
+      </span>
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Proteggi l'app con Face ID</h2>
+      <p className="mt-2 text-sm text-gray-500">
+        Se qualcuno prende in mano il telefono sbloccato non vedrà i dati dei pazienti: l'app chiederà Face ID (o il codice del
+        telefono) all'apertura e dopo 5 minuti in secondo piano.
+      </p>
+      <button
+        onClick={attiva}
+        disabled={inCorso}
+        className="tocco mt-6 w-full max-w-xs rounded-xl bg-teal-600 px-5 py-3 font-medium text-white active:bg-teal-700 disabled:opacity-50"
+      >
+        {inCorso ? 'Attivazione…' : 'Attiva'}
+      </button>
+      <button onClick={chiudiPropostaBlocco} disabled={inCorso} className="btn-secondary tocco mt-3 w-full max-w-xs py-3">
+        Non ora
+      </button>
+      {errore && (
+        <p role="alert" className="mt-4 max-w-xs text-sm text-red-600 dark:text-red-400">
+          {errore}
+        </p>
+      )}
+      <p className="mt-4 max-w-xs text-xs text-gray-400">Si può attivare o togliere quando vuoi da Impostazioni.</p>
+    </Centrato>
+  )
+}
+

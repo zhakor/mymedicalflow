@@ -20,10 +20,15 @@ export interface DepositoFile {
   /** Crea un NUOVO file e ne restituisce l'id. */
   carica(revisione: number, dati: Byte): Promise<string>
   scarica(fileId: string): Promise<Byte>
-  /** Rimuove un file caricato ma mai pubblicato, o una copia oltre le ultime. */
-  cestina(fileId: string): Promise<void>
+  /**
+   * Elimina DEFINITIVAMENTE (non nel cestino: lo spazio si libera subito) un
+   * file caricato ma mai pubblicato, o una copia oltre le ultime.
+   */
+  elimina(fileId: string): Promise<void>
   /** Gli archivi presenti, con la loro revisione (per tenere solo gli ultimi). */
   elenca(): Promise<{ id: string; revisione: number }[]>
+  /** Elimina definitivamente gli archivi rimasti nel cestino (versioni precedenti dell'app). */
+  eliminaCestinati?(): Promise<void>
 }
 
 /** Il modello Word delle fatture cartacee. */

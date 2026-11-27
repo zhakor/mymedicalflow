@@ -33,6 +33,7 @@ function driveFinto() {
       for (const [, k, v] of q.matchAll(/appProperties has \{ key='([^']+)' and value='([^']+)' \}/g)) if (f.appProperties[k] !== v) return false
       for (const [, m] of q.matchAll(/mimeType='([^']+)'/g)) if (f.mimeType !== m) return false
       if (q.includes('trashed=false') && f.trashed) return false
+      if (q.includes('trashed=true') && !f.trashed) return false
       return true
     })
   }
@@ -83,6 +84,10 @@ function driveFinto() {
       const f = file.get(id!)!
       Object.assign(f, metadati, { appProperties: { ...f.appProperties, ...metadati.appProperties }, contenuto: dati })
       return json({ id: f.id })
+    }
+    if (metodo === 'DELETE' && id) {
+      if (!file.delete(id)) return json({ error: { message: 'File not found' } }, 404)
+      return new Response(null, { status: 204 })
     }
     if (metodo === 'PATCH' && id) {
       Object.assign(file.get(id)!, JSON.parse(String(init.body)))
@@ -135,21 +140,35 @@ describe('Drive: archivi e modello', () => {
 
     expect((await deposito.elenca()).map((a) => a.revisione).sort()).toEqual([1, 2])
 
-    await deposito.cestina(primo)
-    expect(finto.file.get(primo)!.trashed).toBe(true)
+    // Eliminato davvero, non nel cestino: lo spazio su Drive si libera subito
+    await deposito.elimina(primo)
+    expect(finto.file.has(primo)).toBe(false)
     expect(await deposito.elenca()).toEqual([{ id: secondo, revisione: 2 }])
   })
 
-  it("ritrova l'archivio di una revisione passata, ma non quelli nel cestino", async () => {
+  it("ritrova l'archivio di una revisione passata, ma non quelli eliminati", async () => {
     const { drive } = nuovoDrive()
     const cartelle = await drive.assicuraStruttura('i')
     const deposito = drive.deposito(cartelle)
     const primo = await deposito.carica(1, BYTE)
     const orfano = await deposito.carica(2, BYTE)
-    await deposito.cestina(orfano)
+    await deposito.elimina(orfano)
 
     expect(await drive.archivioDellaRevisione(cartelle, 1)).toBe(primo)
     expect(await drive.archivioDellaRevisione(cartelle, 2)).toBeNull()
+  })
+
+  it("gli archivi lasciati nel cestino dalle versioni precedenti si eliminano definitivamente", async () => {
+    const { finto, drive } = nuovoDrive()
+    const cartelle = await drive.assicuraStruttura('i')
+    const deposito = drive.deposito(cartelle)
+    const vecchio = await deposito.carica(1, BYTE)
+    const attuale = await deposito.carica(2, BYTE)
+    finto.file.get(vecchio)!.trashed = true
+
+    await deposito.eliminaCestinati!()
+    expect(finto.file.has(vecchio)).toBe(false)
+    expect(finto.file.has(attuale)).toBe(true)
   })
 
   it('il modello Word è uno solo: il secondo caricamento sostituisce il primo', async () => {

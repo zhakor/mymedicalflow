@@ -108,8 +108,13 @@ export class Drive {
           dati,
         ),
       scarica: (fileId) => this.scaricaFile(fileId),
-      cestina: async (fileId) => {
-        await this.json(`${API}/files/${fileId}?fields=id`, { method: 'PATCH', body: JSON.stringify({ trashed: true }) })
+      // DELETE elimina definitivamente: con `drive.file` l'app può farlo solo sui file che ha creato lei
+      elimina: async (fileId) => {
+        await this.richiesta(`${API}/files/${fileId}`, { method: 'DELETE' })
+      },
+      eliminaCestinati: async () => {
+        const nelCestino = await this.cerca(`'${cartelle.archivio}' in parents and ${condizione('mmf_type', 'archivio')}`, undefined, true)
+        for (const f of nelCestino) await this.richiesta(`${API}/files/${f.id}`, { method: 'DELETE' }).catch(() => {})
       },
       // I più recenti per primi: con molti file la prima pagina ha quelli da tenere
       elenca: async () =>
@@ -164,9 +169,9 @@ export class Drive {
     return this.creaFile({ name: chiave, parents: [radice], mimeType: CARTELLA, appProperties: { mmf_type: 'folder', mmf_key: chiave } })
   }
 
-  private async cerca(q: string, ordine?: string): Promise<FileDrive[]> {
+  private async cerca(q: string, ordine?: string, cestinati = false): Promise<FileDrive[]> {
     const parametri = new URLSearchParams({
-      q: `${q} and trashed=false`,
+      q: `${q} and trashed=${cestinati}`,
       fields: 'files(id,name,appProperties)',
       pageSize: '100',
       spaces: 'drive',

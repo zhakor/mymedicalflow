@@ -75,7 +75,7 @@ export class CloudInMemoria {
         if (!dati) throw new Error(`file inesistente: ${fileId}`)
         return dati.slice()
       },
-      cestina: async (fileId) => {
+      elimina: async (fileId) => {
         rete()
         this.file.delete(fileId)
       },

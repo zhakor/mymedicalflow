@@ -23,7 +23,7 @@ import { fondi, rinumeraFattureDuplicate, type Conflitto, type Rinumerazione, ty
 const MAX_TENTATIVI = 5
 /**
  * Archivi tenuti su Drive (CR §4.1): l'attuale e i precedenti, per ripristinare
- * una versione recente. I più vecchi vanno nel cestino di Drive.
+ * una versione recente. I più vecchi si eliminano definitivamente.
  */
 export const COPIE_DA_TENERE = 5
 
@@ -79,6 +79,7 @@ export class MotoreSincronizzazione {
    */
   private ultimoNoto: Puntatore | null = null
   private inAscolto = false
+  private cestinoSvuotato = false
 
   constructor(private readonly o: OpzioniMotore) {
     this.stato = o.statoIniziale ?? null
@@ -109,7 +110,7 @@ export class MotoreSincronizzazione {
       const fileId = await this.o.deposito.carica(1, await cifraArchivio(locale, this.o.chiave))
       const ok = await this.o.registro.pubblica(0, this.puntatore(1, fileId))
       if (!ok) {
-        await this.o.deposito.cestina(fileId).catch(() => {})
+        await this.o.deposito.elimina(fileId).catch(() => {})
         throw new Error('Esiste già un archivio su Drive: collegarsi a quello invece di crearne uno nuovo.')
       }
       await this.adotta(locale, 1, locale)
@@ -193,15 +194,21 @@ export class MotoreSincronizzazione {
 
   /**
    * Dopo una pubblicazione, in sottofondo: tiene gli ultimi `COPIE_DA_TENERE`
-   * archivi e cestina gli altri. Mai quello appena pubblicato. Gli errori si
-   * ignorano: ci riprova la pubblicazione successiva, anche dall'altro dispositivo.
+   * archivi ed elimina definitivamente gli altri, per liberare spazio. Mai
+   * quello appena pubblicato. Una volta per sessione svuota anche gli archivi
+   * che le versioni precedenti mettevano nel cestino. Gli errori si ignorano:
+   * ci riprova la pubblicazione successiva, anche dall'altro dispositivo.
    */
   private pulisciCopie(pubblicato: string): void {
+    if (!this.cestinoSvuotato) {
+      this.cestinoSvuotato = true
+      void this.o.deposito.eliminaCestinati?.().catch(() => {})
+    }
     void this.o.deposito
       .elenca()
       .then(async (archivi) => {
         const vecchi = archivi.sort((a, b) => b.revisione - a.revisione).slice(COPIE_DA_TENERE)
-        for (const a of vecchi) if (a.id !== pubblicato) await this.o.deposito.cestina(a.id).catch(() => {})
+        for (const a of vecchi) if (a.id !== pubblicato) await this.o.deposito.elimina(a.id).catch(() => {})
       })
       .catch(() => {})
   }
@@ -243,13 +250,13 @@ export class MotoreSincronizzazione {
       } else {
         const nuovo = p.revisione + 1
         const fileId = await this.o.deposito.carica(nuovo, await cifraArchivio(finale, this.o.chiave))
-        // Se la risposta della transazione va persa il file NON si cestina:
+        // Se la risposta della transazione va persa il file NON si elimina:
         // potrebbe essere già il puntatore pubblicato. Il ciclo successivo
         // lo riconosce come revisione remota e la fusione converge.
         const pubblicando = this.puntatore(nuovo, fileId)
         const ok = await this.o.registro.pubblica(p.revisione, pubblicando)
         if (!ok) {
-          await this.o.deposito.cestina(fileId).catch(() => {})
+          await this.o.deposito.elimina(fileId).catch(() => {})
           continue
         }
         if (this.inAscolto) this.ultimoNoto = pubblicando

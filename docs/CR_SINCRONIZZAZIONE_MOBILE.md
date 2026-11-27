@@ -58,7 +58,7 @@ Il mio Drive/
         └── template-fattura.docx          IN CHIARO, come richiesto
 ```
 
-- **Copia su scrittura**: ogni salvataggio crea un **nuovo** file di archivio e solo dopo sposta il puntatore su Firestore. Un archivio pubblicato non viene mai sovrascritto, per cui chi legge non trova mai un file scritto a metà. Gli ultimi 5 file restano come cronologia, i più vecchi vanno nel cestino di Drive: lo fa, in sottofondo, il dispositivo che ha appena pubblicato (`COPIE_DA_TENERE` in `motore.ts`, dal 26/11/2026).
+- **Copia su scrittura**: ogni salvataggio crea un **nuovo** file di archivio e solo dopo sposta il puntatore su Firestore. Un archivio pubblicato non viene mai sovrascritto, per cui chi legge non trova mai un file scritto a metà. Gli ultimi 5 file restano come cronologia, i più vecchi si eliminano definitivamente (non nel cestino: lo spazio si libera subito). Lo fa, in sottofondo, il dispositivo che ha appena pubblicato (`COPIE_DA_TENERE` in `motore.ts`); una volta per sessione elimina anche gli archivi che le versioni precedenti avevano messo nel cestino. Anche le copie di sicurezza locali del desktop sono 5 per destinazione (`MAX_BACKUP` in `secure_store.rs`).
 - Ogni file di archivio è una `.mmfbak` valida: si può scaricare e ripristinare con la procedura che esiste già.
 
 ### 4.2 Firestore

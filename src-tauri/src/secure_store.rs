@@ -24,7 +24,7 @@ const PREFISSO_BACKUP: &str = "mymedicalflow-";
 const ESTENSIONE_BACKUP: &str = "mmfbak";
 
 /// Copie conservate per ciascuna destinazione.
-const MAX_BACKUP: usize = 10;
+const MAX_BACKUP: usize = 5;
 
 // ─── Percorsi ─────────────────────────────────────────────────────────────────
 
@@ -641,6 +641,27 @@ mod legacy {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn la_rotazione_tiene_le_5_copie_piu_recenti_e_cancella_le_altre() {
+        let dir = std::env::temp_dir().join(format!("mmf-rotazione-{}", epoch_ms()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let base = 1_786_219_300_000_u64;
+        for i in 0..8 {
+            std::fs::write(dir.join(nome_backup(base + i * 60_000)), b"copia").unwrap();
+        }
+        // Un file estraneo nella stessa cartella non va toccato
+        std::fs::write(dir.join("appunti.txt"), b"mio").unwrap();
+
+        ruota(&dir);
+
+        let mut rimaste: Vec<u64> = elenca_in(&dir, false).iter().map(|b| b.creato_il).collect();
+        rimaste.sort();
+        let attese: Vec<u64> = (3..8).map(|i| base + i * 60_000).collect();
+        assert_eq!(rimaste, attese);
+        assert!(dir.join("appunti.txt").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn il_nome_del_backup_conserva_l_istante() {

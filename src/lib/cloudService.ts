@@ -35,7 +35,7 @@ import { useNotificheStore } from '../stores/notificheStore'
 import { oggi } from './agendaService'
 import { fatturaService } from './fatturaService'
 import { aggiornaWord } from './wordFatturaService'
-import { codiceRecupero } from './backupService'
+import { codiceRecupero, creaCopiaOra } from './backupService'
 import { sostituisciArchivio, storageService, suModificaUtente } from './storageService'
 import { useSincronizzazioneStore } from '../stores/sincronizzazioneStore'
 import { useProfiloStore } from '../stores/profiloStore'
@@ -171,7 +171,9 @@ function salvaConfigurazione(c: ConfigurazioneSync | null): void {
  * modello Word in `template/`, verifica. Si può ripetere: dallo stesso PC
  * ricollega senza ricaricare nulla.
  */
-export async function configuraSincronizzazione(passo?: (descrizione: string) => void): Promise<EsitoConfigurazione> {
+export async function configuraSincronizzazione(
+  passo?: (descrizione: string) => void,
+): Promise<EsitoConfigurazione & { datiDaDrive: boolean }> {
   const account = await accountCollegato()
   if (!account) throw new ErroreAccesso('Accedi con Google per configurare la sincronizzazione.')
   // L'istanza si conserva fra un tentativo e l'altro: è il marcatore della radice
@@ -186,8 +188,29 @@ export async function configuraSincronizzazione(passo?: (descrizione: string) =>
     archivio: storageService.istantanea(),
     passo,
   })
-  salvaConfigurazione({ istanza, radice: esito.radice, email: account.email, configurataIl: new Date().toISOString() })
-  return esito
+  const datiDaDrive = esito.tipo === 'adozione' && (await allineaDopoAdozione(esito))
+  salvaConfigurazione({ istanza: esito.istanza, radice: esito.radice, email: account.email, configurataIl: new Date().toISOString() })
+  return { ...esito, datiDaDrive }
+}
+
+/**
+ * Archivio su Drive dello stesso studio ma creato da un'altra installazione
+ * (PC reinstallato, PC nuovo, build di sviluppo e di produzione). Se questo PC
+ * ha ancora la sua base di sincronizzazione, la sincronizzazione continua
+ * unisce come sempre e non si perde nulla. Senza base (o con una base più
+ * avanti di Drive, quindi di un altro archivio) non si può capire cosa è stato
+ * cancellato e cosa è nuovo: vincono i dati di Drive, dopo una copia di
+ * sicurezza di quelli del PC. Vero se i dati del PC sono stati sostituiti.
+ */
+async function allineaDopoAdozione(esito: EsitoConfigurazione): Promise<boolean> {
+  const base = await leggiBase()
+  if (base && base.revisione <= esito.revisione) return false
+  await creaCopiaOra()
+  const prima = storageService.istantanea()
+  await sostituisciArchivio(JSON.stringify(reinserisciModello(esito.remoto, prima)))
+  await salvaBase({ base: esito.remoto, revisione: esito.revisione })
+  ricaricaSchermate()
+  return true
 }
 
 // ─── Sincronizzazione continua (CR §5) ───────────────────────────────────────

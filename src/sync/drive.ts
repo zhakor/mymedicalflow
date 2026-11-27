@@ -208,7 +208,8 @@ export class Drive {
     return r.id
   }
 
-  private async scaricaFile(fileId: string): Promise<Byte> {
+  /** Un file per id (anche l'archivio di un'altra installazione, prima di adottarla). */
+  async scaricaFile(fileId: string): Promise<Byte> {
     const risposta = await this.richiesta(`${API}/files/${fileId}?alt=media`)
     return new Uint8Array(await risposta.arrayBuffer())
   }

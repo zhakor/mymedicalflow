@@ -85,7 +85,11 @@ export function SincronizzazioneCard({ onFeedback }: SincronizzazioneCardProps) 
       onFeedback(
         esito.tipo === 'nuova'
           ? "Archivio caricato su Google Drive e verificato: l'app sul telefono può collegarsi."
-          : 'Collegamento a Google Drive verificato.',
+          : esito.datiDaDrive
+            ? "PC collegato all'archivio già presente su Google Drive. I dati del PC sono stati sostituiti con quelli di Drive; quelli di prima sono in una copia di sicurezza."
+            : esito.tipo === 'adozione'
+              ? "PC collegato all'archivio già presente su Google Drive."
+              : 'Collegamento a Google Drive verificato.',
       )
     })
 

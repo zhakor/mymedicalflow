@@ -22,6 +22,7 @@ function driveInMemoria(cloud = new CloudInMemoria()) {
   const client = cloud.client()
   const drive: StrutturaDrive = {
     cercaRadici: async () => [...radici],
+    scaricaFile: (id) => client.deposito.scarica(id),
     assicuraStruttura: async (istanza, radice) => {
       const id = radice ?? `radice-${radici.length + 1}`
       if (!radice) radici.push({ id, istanza })
@@ -41,7 +42,7 @@ describe('configurazione dal desktop (§8)', () => {
 
     const esito = await configuraDalDesktop({ drive, registro, chiave: await chiave(), istanza: 'pc-1', archivio: locale, passo: (p) => passi.push(p) })
 
-    expect(esito).toEqual({ tipo: 'nuova', radice: 'radice-1', revisione: 1 })
+    expect(esito).toMatchObject({ tipo: 'nuova', radice: 'radice-1', istanza: 'pc-1', revisione: 1 })
     expect(radici).toEqual([{ id: 'radice-1', istanza: 'pc-1' }])
     expect(cloud.modello).toEqual({ nomeFile: 'Studio.docx', dati: DOCX })
     const remoto = await decifraArchivio(cloud.file.get(cloud.puntatore!.fileId)!, await chiave())
@@ -56,7 +57,7 @@ describe('configurazione dal desktop (§8)', () => {
     const o = { drive, registro, chiave: await chiave(), istanza: 'pc-1', archivio: ARCHIVIO }
     await configuraDalDesktop(o)
 
-    expect(await configuraDalDesktop(o)).toEqual({ tipo: 'ricollegamento', radice: 'radice-1', revisione: 1 })
+    expect(await configuraDalDesktop(o)).toMatchObject({ tipo: 'ricollegamento', radice: 'radice-1', istanza: 'pc-1', revisione: 1 })
     expect(radici).toHaveLength(1)
     expect(cloud.file.size).toBe(1)
   })
@@ -71,16 +72,43 @@ describe('configurazione dal desktop (§8)', () => {
     expect(cloud.puntatore?.revisione).toBe(1)
   })
 
-  it("l'archivio di un'altra installazione non si tocca", async () => {
-    const { cloud, drive, registro } = driveInMemoria()
+  it("l'archivio di un'altra installazione, con un altro codice di recupero, non si tocca", async () => {
+    const { cloud, drive, radici, registro } = driveInMemoria()
     await configuraDalDesktop({ drive, registro, chiave: await chiave(), istanza: 'pc-studio', archivio: ARCHIVIO })
     const prima = { ...cloud.puntatore }
+    const modello = cloud.modello
 
     await expect(
-      configuraDalDesktop({ drive, registro, chiave: await chiave(), istanza: 'pc-casa', archivio: { pazienti: '[]' } }),
+      configuraDalDesktop({ drive, registro, chiave: await chiave(1), istanza: 'pc-casa', archivio: { pazienti: '[]' } }),
     ).rejects.toThrow(ArchivioDiAltraInstallazione)
     expect(cloud.puntatore).toEqual(prima)
     expect(cloud.file.size).toBe(1)
+    expect(cloud.modello).toBe(modello)
+    expect(radici).toHaveLength(1)
+  })
+
+  it('con lo stesso codice di recupero la radice si adotta: stessa istanza, nessuna scrittura, archivio di Drive restituito', async () => {
+    const { cloud, drive, radici, registro } = driveInMemoria()
+    await configuraDalDesktop({ drive, registro, chiave: await chiave(), istanza: 'pc-sviluppo', archivio: ARCHIVIO })
+    const prima = { ...cloud.puntatore }
+
+    const esito = await configuraDalDesktop({ drive, registro, chiave: await chiave(), istanza: 'pc-produzione', archivio: { pazienti: '[]' } })
+
+    expect(esito).toMatchObject({ tipo: 'adozione', radice: 'radice-1', istanza: 'pc-sviluppo', revisione: 1 })
+    expect(esito.remoto.pazienti).toBe(ARCHIVIO.pazienti)
+    expect(cloud.puntatore).toEqual(prima)
+    expect(cloud.file.size).toBe(1)
+    expect(radici).toEqual([{ id: 'radice-1', istanza: 'pc-sviluppo' }])
+  })
+
+  it("un errore di rete mentre si controlla l'archivio non passa per un codice diverso", async () => {
+    const { drive, registro } = driveInMemoria()
+    await configuraDalDesktop({ drive, registro, chiave: await chiave(), istanza: 'pc-1', archivio: ARCHIVIO })
+    const offline: StrutturaDrive = { ...drive, scaricaFile: async () => Promise.reject(new Error('rete')) }
+
+    await expect(
+      configuraDalDesktop({ drive: offline, registro, chiave: await chiave(), istanza: 'pc-2', archivio: ARCHIVIO }),
+    ).rejects.toThrow('rete')
   })
 
   it('un puntatore senza radice su Drive (cartella cancellata) blocca invece di sovrascrivere', async () => {

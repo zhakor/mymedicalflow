@@ -3,7 +3,10 @@
  * rende la revisione 1, perché il telefono possa collegarsi.
  *
  *   1. licenza: la lettura del puntatore passa dalle regole di Firestore
- *   2. ricerca della radice per marcatore (nuova, ricollegamento, altra installazione)
+ *   2. ricerca della radice per marcatore (nuova, ricollegamento, altra installazione).
+ *      La radice di un'altra installazione si adotta se il suo archivio si apre
+ *      con il codice di recupero di questo PC: è lo stesso studio (PC
+ *      reinstallato, PC nuovo, build di sviluppo e di produzione).
  *   3. cartelle, con un'operazione che si può ripetere
  *   4. modello Word in chiaro in `template/`, archivio come revisione 1
  *   5. verifica: si riscarica l'archivio pubblicato e lo si decifra
@@ -12,7 +15,7 @@
  * procedura si prova in memoria.
  */
 
-import { decifraArchivio, type Archivio } from './cifratura'
+import { decifraArchivio, type Archivio, type Byte } from './cifratura'
 import type { DepositoFile, DepositoModello, Registro } from './contratti'
 import type { Cartelle, RadiceTrovata } from './drive'
 import { estraiModello } from './modello'
@@ -21,6 +24,8 @@ import { MotoreSincronizzazione } from './motore'
 /** Le operazioni di `Drive` usate dalla configurazione. */
 export interface StrutturaDrive {
   cercaRadici(): Promise<RadiceTrovata[]>
+  /** Un file per id, senza creare né toccare cartelle. */
+  scaricaFile(fileId: string): Promise<Byte>
   assicuraStruttura(istanza: string, radice?: string): Promise<Cartelle>
   deposito(cartelle: Cartelle): DepositoFile
   modello(cartelle: Cartelle): DepositoModello
@@ -39,16 +44,21 @@ export interface OpzioniConfigurazione {
 }
 
 export interface EsitoConfigurazione {
-  tipo: 'nuova' | 'ricollegamento'
+  /** `adozione`: radice creata da un'altra installazione, ma con il nostro codice di recupero. */
+  tipo: 'nuova' | 'ricollegamento' | 'adozione'
   radice: string
+  /** Id dell'installazione da ricordare: quella della radice, se adottata. */
+  istanza: string
   revisione: number
+  /** L'archivio pubblicato su Drive, decifrato (senza il modello Word). */
+  remoto: Archivio
 }
 
-/** Su Drive c'è l'archivio di un'altra installazione: non si sovrascrive. */
+/** Su Drive c'è un archivio che il codice di recupero di questo PC non apre: non si sovrascrive. */
 export class ArchivioDiAltraInstallazione extends Error {
   constructor() {
     super(
-      "Su questo Google Drive c'è già l'archivio di un'altra installazione di MyMedicalFlow. " +
+      "Su questo Google Drive c'è già un archivio di MyMedicalFlow cifrato con un altro codice di recupero. " +
         'Per non sovrascriverlo la configurazione si è fermata.',
     )
     this.name = 'ArchivioDiAltraInstallazione'
@@ -67,11 +77,20 @@ export async function configuraDalDesktop(o: OpzioniConfigurazione): Promise<Esi
   passo('Ricerca dell\'archivio su Drive')
   const radici = await o.drive.cercaRadici()
   const mia = radici.find((r) => r.istanza === o.istanza)
-  // Un puntatore senza la nostra radice, o la radice di un altro: non è nostro
-  if (!mia && (puntatore || radici.length > 0)) throw new ArchivioDiAltraInstallazione()
+  let istanza = o.istanza
+  let radice = mia?.id
+  if (!mia && (puntatore || radici.length > 0)) {
+    // Radice di un'altra installazione: si adotta solo se il suo archivio si
+    // apre con la nostra chiave. Senza archivio pubblicato o senza radice
+    // (cartella cancellata) non c'è modo di saperlo: ci si ferma.
+    const altra = radici[0]
+    if (!puntatore || !altra || !(await apribile(o, puntatore.fileId))) throw new ArchivioDiAltraInstallazione()
+    istanza = altra.istanza ?? o.istanza
+    radice = altra.id
+  }
 
   passo('Preparazione delle cartelle')
-  const cartelle = await o.drive.assicuraStruttura(o.istanza, mia?.id)
+  const cartelle = await o.drive.assicuraStruttura(istanza, radice)
   const deposito = o.drive.deposito(cartelle)
 
   // Il modello Word va su Drive in chiaro; nell'archivio restano i metadati
@@ -87,7 +106,7 @@ export async function configuraDalDesktop(o: OpzioniConfigurazione): Promise<Esi
       deposito,
       registro: o.registro,
       chiave: o.chiave,
-      dispositivo: o.istanza,
+      dispositivo: istanza,
       leggiLocale: () => ({ ...archivio }),
       // L'archivio locale resta com'è, con il modello Word dentro
       scriviLocale: () => {},
@@ -109,5 +128,18 @@ export async function configuraDalDesktop(o: OpzioniConfigurazione): Promise<Esi
     throw new Error("L'archivio riscaricato da Drive non coincide con quello caricato: riprova la configurazione.")
   }
 
-  return { tipo: puntatore ? 'ricollegamento' : 'nuova', radice: cartelle.radice, revisione: pubblicato.revisione }
+  const tipo = !puntatore ? 'nuova' : mia ? 'ricollegamento' : 'adozione'
+  return { tipo, radice: cartelle.radice, istanza, revisione: pubblicato.revisione, remoto }
+}
+
+/** Prima di scrivere qualsiasi cosa nella radice di un altro: il suo archivio si apre con la nostra chiave? */
+async function apribile(o: OpzioniConfigurazione, fileId: string): Promise<boolean> {
+  // Un errore di rete non è un codice diverso: si propaga
+  const cifrato = await o.drive.scaricaFile(fileId)
+  try {
+    await decifraArchivio(cifrato, o.chiave)
+    return true
+  } catch {
+    return false
+  }
 }

@@ -4,7 +4,6 @@ import { Button } from '@desktop/components/ui/Button'
 import { profiloService } from '@desktop/lib/profiloService'
 import { useDati } from '../dati/hooks'
 import { impostaBlocco, statoBlocco, useSincronizzazione } from '../dati/sincronizzazione'
-import { VERSIONE } from '../versione'
 import { cambiaTema, temaScuro } from '../tema'
 
 export function Altro() {
@@ -90,8 +89,7 @@ export function Altro() {
 
       {/* Versione (commit) e ora di compilazione: per capire se il telefono ha l'ultima */}
       <p className="text-center text-xs text-gray-400 pt-2">
-        MyMedicalFlow mobile — anteprima
-        <span className="block tabular-nums mt-0.5">{VERSIONE}</span>
+        MyMedicalFlow mobile
       </p>
     </div>
   )

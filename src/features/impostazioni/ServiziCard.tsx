@@ -185,7 +185,7 @@ export function ServiziCard({ onFeedback }: ServiziCardProps) {
             </h3>
           </div>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Le prestazioni che offri. La durata riserva lo spazio in agenda, il
+            Gestisci i servizi che offri. La durata riserva lo spazio in agenda, il
             prezzo serve a confrontare le sedute svolte con l'importo in fattura.
           </p>
         </div>

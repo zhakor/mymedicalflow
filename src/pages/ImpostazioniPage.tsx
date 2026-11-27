@@ -232,7 +232,7 @@ export function ImpostazioniPage() {
           Cartella di salvataggio fatture
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Scegli dove salvare i file Word generati. Se non impostata, verrà usata la cartella Download.
+          Scegli dove salvare le fatture generate come file Word. Se non impostata, verrà usata la cartella Download del tuo PC.
         </p>
 
         {form.cartellaSalvataggio ? (

@@ -248,9 +248,10 @@ fn accedi() -> Result<AccessoGoogle, String> {
             ("code_challenge", sfida.as_str()),
             ("code_challenge_method", "S256"),
             ("state", stato.as_str()),
-            // Senza "consent" Google non ridà il refresh token a chi l'ha già avuto
+            // Senza "consent" Google non ridà il refresh token a chi l'ha già avuto;
+            // "select_account" lascia scegliere l'account a ogni accesso
             ("access_type", "offline"),
-            ("prompt", "consent"),
+            ("prompt", "select_account consent"),
         ],
     )
     .map_err(|e| e.to_string())?;

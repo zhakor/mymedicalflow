@@ -20,11 +20,12 @@ import {
   signOut,
   type Auth,
 } from 'firebase/auth'
-import { initializeFirestore, type Firestore } from 'firebase/firestore'
+import { doc, getDocFromServer, initializeFirestore, type Firestore } from 'firebase/firestore'
 import { codiceInChiave, decifraArchivio, importaChiave, type Archivio } from '../sync/cifratura'
 import { ErroreAccesso, ErroreConnessione } from '../sync/contratti'
 import { Drive, type Cartelle } from '../sync/drive'
-import { registroFirestore } from '../sync/firestore'
+import { registroFirestore, traduciErrore } from '../sync/firestore'
+import type { Licenza } from './abbonamentoService'
 import { configuraDalDesktop, type EsitoConfigurazione } from '../sync/configurazione'
 import { MotoreSincronizzazione, type EsitoSincronizzazione, type StatoSincronizzato } from '../sync/motore'
 import { estraiModello, reinserisciModello } from '../sync/modello'
@@ -103,6 +104,30 @@ export async function accountCollegato(): Promise<AccountGoogle | null> {
   await auth.authStateReady()
   const user = auth.currentUser
   return user ? { uid: user.uid, email: user.email ?? '' } : null
+}
+
+/**
+ * La licenza dell'account collegato, letta dal server (mai dalla cache):
+ * `licenze/{email}` su Firestore, che le regole lasciano leggere solo a lui.
+ * Senza rete solleva `ErroreConnessione`.
+ */
+export async function leggiLicenza(): Promise<Licenza> {
+  const { auth, db } = avviaFirebase()
+  await auth.authStateReady()
+  const user = auth.currentUser
+  if (!user?.email) throw new ErroreAccesso("Accedi con Google per verificare l'abbonamento.")
+  try {
+    const dati = (await getDocFromServer(doc(db, 'licenze', user.email))).data()
+    const scadenza = dati?.scadenza as { toMillis?: () => number } | undefined
+    return {
+      email: user.email,
+      emailVerificata: user.emailVerified,
+      attiva: dati?.attiva === true,
+      scadenza: typeof scadenza?.toMillis === 'function' ? scadenza.toMillis() : null,
+    }
+  } catch (err) {
+    throw traduciErrore(err)
+  }
 }
 
 export async function esciGoogle(): Promise<void> {
